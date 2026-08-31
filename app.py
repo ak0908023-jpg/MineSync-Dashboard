@@ -28,6 +28,43 @@ st.markdown("""
         .stButton>button:hover { background-color: #ff3333; transform: translateY(-1px); }
     </style>
 """, unsafe_allow_html=True)
+# -----------------------------------------------------------------------------
+# 1.5 Security & Authentication Module
+# -----------------------------------------------------------------------------
+# Dictionary of authorized users (Username: Password)
+USER_CREDENTIALS = {
+    "admin": "nalco2026",
+    "shift_manager": "panchpatmali123",
+    "safety_officer": "dgms2026"
+}
+
+# Initialize session state for authentication
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+# The Login Screen
+if not st.session_state.authenticated:
+    st.markdown("<h2 style='text-align: center; color: #1e3d59;'>🔒 MineSync Secure Login</h2>", unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.info("Please enter your credentials to access the compliance dashboard.")
+        input_username = st.text_input("Username")
+        input_password = st.text_input("Password", type="password")
+        
+        if st.button("Secure Login", use_container_width=True):
+            if input_username in USER_CREDENTIALS and USER_CREDENTIALS[input_username] == input_password:
+                st.session_state.authenticated = True
+                st.rerun() # Refresh the page to load the dashboard
+            else:
+                st.error("❌ Invalid Username or Password. Please try again.")
+                
+    # Stop the rest of the code from running until authenticated
+    st.stop()
+
+# --- IF AUTHENTICATED, ADD A LOGOUT BUTTON TO THE SIDEBAR LATER ---
+st.sidebar.button("🔓 Logout", on_click=lambda: st.session_state.update(authenticated=False))
+st.sidebar.divider()
 
 FILE_PATH = "Master_Training_Report_2026.xlsx"
 
