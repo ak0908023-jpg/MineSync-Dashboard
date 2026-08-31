@@ -3,6 +3,7 @@ import pandas as pd
 import datetime
 import io
 from fpdf import FPDF
+import plotly.express as px
 
 # -----------------------------------------------------------------------------
 # 1. Dashboard Configuration & Custom Styling
@@ -142,6 +143,7 @@ if selected_page == "Enterprise Overview":
     total_personnel = len(df_pme) if not df_pme.empty else 0
     overdue_pme_count = len(df_pme[df_pme['Status'] == 'Overdue']) if not df_pme.empty else 0
     overdue_refresher_count = len(df_refresher[df_refresher['Status'] == 'Overdue']) if not df_refresher.empty else 0
+    compliant_count = total_personnel - overdue_pme_count
 
     st.markdown("### 📊 Live Action Requirements")
     col1, col2, col3, col4 = st.columns(4)
@@ -150,6 +152,19 @@ if selected_page == "Enterprise Overview":
     col3.metric("Refresher Overdue 🚨", f"{overdue_refresher_count}", delta=f"-{overdue_refresher_count} Action Req", delta_color="inverse")
     col4.metric("System Status", "Online ✅")
     
+    st.divider()
+    
+    # Dynamic Donut Chart for Overall Health
+    st.markdown("#### Overall PME Compliance Health")
+    status_data = pd.DataFrame({
+        'Status': ['Compliant', 'Overdue'],
+        'Personnel': [compliant_count, overdue_pme_count]
+    })
+    fig_health = px.pie(status_data, values='Personnel', names='Status', hole=0.6, 
+                        color='Status', color_discrete_map={'Compliant':'#2ca02c', 'Overdue':'#ff4b4b'})
+    fig_health.update_layout(margin=dict(t=20, b=20, l=0, r=0), height=300)
+    st.plotly_chart(fig_health, use_container_width=True)
+
     st.info("👈 Please select a module from the sidebar menu to view detailed records.")
 
 # -----------------------------------------------------------------------------
@@ -225,49 +240,59 @@ elif selected_page == "🔧 Service":
         st.info("No data loaded. Ensure your Excel file has a tab named 'Service_Training'.")
 
 elif selected_page == "📈 Analytics":
-    st.title("📈 Master Compliance Reports")
+    st.title("📈 Master Compliance Analytics")
     
-    st.markdown("#### 🩺 Periodic Medical Examination (PME) Trends")
     if not df_pme.empty and 'Compliance Year' in df_pme.columns:
-        col_rep1, col_rep2 = st.columns(2)
-        with col_rep1:
-            st.write("**Year-Wise Compliance**")
-            valid_years = df_pme.dropna(subset=['Compliance Year'])
-            year_summary = valid_years.groupby('Compliance Year').size().reset_index(name='Trained Personnel')
-            year_summary['Compliance Year'] = year_summary['Compliance Year'].astype(int).astype(str)
-            st.bar_chart(year_summary.set_index('Compliance Year'), color="#1e3d59")
-            
-        with col_rep2:
-            st.write("**Month-Wise Due vs. Compliance**")
-            valid_months = df_pme.dropna(subset=['Compliance Month'])
-            month_summary = valid_months.groupby('Compliance Month').size().reset_index(name='Completed Trainings')
-            month_summary['Sort Date'] = pd.to_datetime(month_summary['Compliance Month'], format='%b %Y')
-            month_summary = month_summary.sort_values('Sort Date')
-            month_summary = month_summary.drop('Sort Date', axis=1)
-            st.line_chart(month_summary.set_index('Compliance Month'), color="#ff4b4b")
-    else:
-        st.info("Not enough PME data to generate reports.")
+        st.markdown("#### 🩺 Periodic Medical Examination (PME) Trends")
+        
+        valid_years = df_pme.dropna(subset=['Compliance Year'])
+        year_summary = valid_years.groupby('Compliance Year').size().reset_index(name='Trained Personnel')
+        year_summary['Compliance Year'] = year_summary['Compliance Year'].astype(int).astype(str)
+        
+        # Interactive Gradient Bar Chart
+        fig_year = px.bar(year_summary, x='Compliance Year', y='Trained Personnel', 
+                          text_auto=True, color='Trained Personnel', color_continuous_scale='Blues',
+                          title="Year-Wise Compliance Volume")
+        st.plotly_chart(fig_year, use_container_width=True)
+
+        valid_months = df_pme.dropna(subset=['Compliance Month'])
+        month_summary = valid_months.groupby('Compliance Month').size().reset_index(name='Completed Trainings')
+        month_summary['Sort Date'] = pd.to_datetime(month_summary['Compliance Month'], format='%b %Y')
+        month_summary = month_summary.sort_values('Sort Date')
+        
+        # Interactive Line Chart with Data Points
+        fig_month = px.line(month_summary, x='Compliance Month', y='Completed Trainings', 
+                            markers=True, title="Month-Wise Due vs. Compliance",
+                            color_discrete_sequence=['#ff4b4b'])
+        st.plotly_chart(fig_month, use_container_width=True)
 
     st.divider()
 
-    st.markdown("#### 🚑 First Aid Training Statistics")
     if not df_firstaid.empty and 'Last First Aid Year' in df_firstaid.columns:
+        st.markdown("#### 🚑 First Aid Training Breakdowns")
         col_fa1, col_fa2 = st.columns(2)
+        
         with col_fa1:
-            st.write("**First Aid Training by Year**")
+            category_col = st.selectbox("Select metric to analyze:", options=df_firstaid.columns.tolist(), index=df_firstaid.columns.tolist().index('F3') if 'F3' in df_firstaid.columns else 0)
+            if category_col:
+                fa_type_summary = df_firstaid.groupby(category_col).size().reset_index(name='Total Trained')
+                
+                # Interactive Pie Chart
+                fig_fa_pie = px.pie(fa_type_summary, values='Total Trained', names=category_col, 
+                                    hole=0.4, title=f"Breakdown by {category_col}",
+                                    color_discrete_sequence=px.colors.qualitative.Set2)
+                st.plotly_chart(fig_fa_pie, use_container_width=True)
+                
+        with col_fa2:
             valid_fa_years = df_firstaid.dropna(subset=['Last First Aid Year'])
             fa_year_summary = valid_fa_years.groupby('Last First Aid Year').size().reset_index(name='Trained Personnel')
             fa_year_summary['Last First Aid Year'] = fa_year_summary['Last First Aid Year'].astype(int).astype(str)
-            st.bar_chart(fa_year_summary.set_index('Last First Aid Year'), color="#2ca02c")
             
-        with col_fa2:
-            st.write("**Training Breakdown by Category**")
-            category_col = st.selectbox("Select column to group by:", options=df_firstaid.columns.tolist(), index=df_firstaid.columns.tolist().index('F3') if 'F3' in df_firstaid.columns else 0)
-            if category_col:
-                fa_type_summary = df_firstaid.groupby(category_col).size().reset_index(name='Total Trained')
-                st.dataframe(fa_type_summary)
-    else:
-        st.info("Not enough First Aid date data available for statistics.")
+            # Interactive Bar Chart
+            fig_fa_bar = px.bar(fa_year_summary, x='Last First Aid Year', y='Trained Personnel', 
+                                text_auto=True, title="Annual First Aid Certifications",
+                                color_discrete_sequence=['#2ca02c'])
+            st.plotly_chart(fig_fa_bar, use_container_width=True)
 
 elif selected_page == "💬 AI Assistant":
     st.title("💬 MineSync AI Assistant")
