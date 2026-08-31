@@ -10,10 +10,12 @@ import plotly.express as px
 # -----------------------------------------------------------------------------
 st.set_page_config(page_title="MineSync Compliance Manager", page_icon="⚙️", layout="wide")
 
+# Enhanced CSS for Big Colorful Buttons
 st.markdown("""
     <style>
         .main { background-color: #f8f9fa; }
         h1, h2, h3 { color: #1e3d59; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
         div[data-testid="metric-container"] {
             background-color: #ffffff;
             border-left: 5px solid #1e3d59;
@@ -21,49 +23,60 @@ st.markdown("""
             border-radius: 8px;
             box-shadow: 2px 2px 10px rgba(0,0,0,0.05);
         }
+        
+        /* Master CSS for the big navigation buttons */
         .stButton>button {
-            background-color: #ff4b4b; color: white; border-radius: 5px; border: none;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.3s ease;
+            background-color: #1e3d59; 
+            color: white; 
+            border-radius: 8px; 
+            border: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+            transition: all 0.3s ease;
+            height: 60px; /* Makes the buttons tall */
+            font-size: 16px;
+            font-weight: bold;
         }
-        .stButton>button:hover { background-color: #ff3333; transform: translateY(-1px); }
+        .stButton>button:hover { 
+            background-color: #3b6998; 
+            box-shadow: 0 6px 12px rgba(0,0,0,0.2); 
+            transform: translateY(-2px); 
+        }
+        
+        /* Specific coloring for the Logout and Alert buttons */
+        div[data-testid="stSidebar"] .stButton>button { background-color: #ff4b4b; height: auto; }
     </style>
 """, unsafe_allow_html=True)
+
 # -----------------------------------------------------------------------------
 # 1.5 Security & Authentication Module
 # -----------------------------------------------------------------------------
-# Dictionary of authorized users (Username: Password)
 USER_CREDENTIALS = {
     "admin": "nalco2026",
     "shift_manager": "panchpatmali123",
     "safety_officer": "dgms2026"
 }
 
-# Initialize session state for authentication
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
-# The Login Screen
 if not st.session_state.authenticated:
     st.markdown("<h2 style='text-align: center; color: #1e3d59;'>🔒 MineSync Secure Login</h2>", unsafe_allow_html=True)
-    
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.info("Please enter your credentials to access the compliance dashboard.")
         input_username = st.text_input("Username")
         input_password = st.text_input("Password", type="password")
-        
         if st.button("Secure Login", use_container_width=True):
             if input_username in USER_CREDENTIALS and USER_CREDENTIALS[input_username] == input_password:
                 st.session_state.authenticated = True
-                st.rerun() # Refresh the page to load the dashboard
+                st.rerun()
             else:
                 st.error("❌ Invalid Username or Password. Please try again.")
-                
-    # Stop the rest of the code from running until authenticated
     st.stop()
 
-# --- IF AUTHENTICATED, ADD A LOGOUT BUTTON TO THE SIDEBAR LATER ---
-st.sidebar.button("🔓 Logout", on_click=lambda: st.session_state.update(authenticated=False))
+# Logout Sidebar Header
+st.sidebar.title("👤 User Profile")
+st.sidebar.button("🔓 Secure Logout", on_click=lambda: st.session_state.update(authenticated=False))
 st.sidebar.divider()
 
 FILE_PATH = "Master_Training_Report_2026.xlsx"
@@ -156,27 +169,39 @@ def create_pdf_report(dataframe, title):
     return pdf.output(dest='S').encode('latin-1')
 
 # -----------------------------------------------------------------------------
-# 3. Sidebar Navigation & KPI Dashboard
+# 3. Top Grid Navigation System
 # -----------------------------------------------------------------------------
-st.sidebar.title("⚙️ MineSync Menu")
-selected_page = st.sidebar.radio("Navigate to:", [
-    "Enterprise Overview",
-    "🩺 PME Tracking",
-    "📚 4-Year Refresher", 
-    "🚑 First Aid", 
-    "📋 Supervisor",
-    "🚜 HEMM",
-    "🔥 Fire Fighting",
-    "⚙️ OEM",
-    "🔧 Service",
-    "📈 Analytics",
-    "💬 AI Assistant"
-])
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "Enterprise Overview"
 
-if selected_page == "Enterprise Overview":
-    st.title("⚙️ DGMS Statutory Training Dashboard")
-    st.markdown("Monitor compliance, schedule statutory refreshers, and track heavy equipment competency across the enterprise.")
-    
+def nav(page_name):
+    st.session_state.current_page = page_name
+
+st.title("⚙️ DGMS Training Dashboard")
+st.markdown("Monitor compliance, schedule statutory refreshers, and track equipment competency.")
+
+# Row 1 Buttons
+nav1, nav2, nav3, nav4 = st.columns(4)
+with nav1: st.button("📊 Overview", on_click=nav, args=("Enterprise Overview",), use_container_width=True)
+with nav2: st.button("🩺 PME Tracking", on_click=nav, args=("PME",), use_container_width=True)
+with nav3: st.button("📚 Refresher", on_click=nav, args=("Refresher",), use_container_width=True)
+with nav4: st.button("🚑 First Aid", on_click=nav, args=("First Aid",), use_container_width=True)
+
+# Row 2 Buttons
+nav5, nav6, nav7, nav8 = st.columns(4)
+with nav5: st.button("🚜 HEMM", on_click=nav, args=("HEMM",), use_container_width=True)
+with nav6: st.button("📋 Supervisor", on_click=nav, args=("Supervisor",), use_container_width=True)
+with nav7: st.button("🔥 Fire / ⚙️ OEM", on_click=nav, args=("Misc",), use_container_width=True)
+with nav8: st.button("📈 Analytics & AI", on_click=nav, args=("Analytics",), use_container_width=True)
+
+st.divider()
+
+# -----------------------------------------------------------------------------
+# 4. Page Modules
+# -----------------------------------------------------------------------------
+page = st.session_state.current_page
+
+if page == "Enterprise Overview":
     total_personnel = len(df_pme) if not df_pme.empty else 0
     overdue_pme_count = len(df_pme[df_pme['Status'] == 'Overdue']) if not df_pme.empty else 0
     overdue_refresher_count = len(df_refresher[df_refresher['Status'] == 'Overdue']) if not df_refresher.empty else 0
@@ -189,25 +214,17 @@ if selected_page == "Enterprise Overview":
     col3.metric("Refresher Overdue 🚨", f"{overdue_refresher_count}", delta=f"-{overdue_refresher_count} Action Req", delta_color="inverse")
     col4.metric("System Status", "Online ✅")
     
-    st.divider()
-    
-    # Dynamic Donut Chart for Overall Health
-    st.markdown("#### Overall PME Compliance Health")
     status_data = pd.DataFrame({
         'Status': ['Compliant', 'Overdue'],
         'Personnel': [compliant_count, overdue_pme_count]
     })
     fig_health = px.pie(status_data, values='Personnel', names='Status', hole=0.6, 
-                        color='Status', color_discrete_map={'Compliant':'#2ca02c', 'Overdue':'#ff4b4b'})
-    fig_health.update_layout(margin=dict(t=20, b=20, l=0, r=0), height=300)
+                        color='Status', color_discrete_map={'Compliant':'#2ca02c', 'Overdue':'#ff4b4b'},
+                        title="Overall PME Compliance Health")
+    fig_health.update_layout(margin=dict(t=40, b=20, l=0, r=0), height=350)
     st.plotly_chart(fig_health, use_container_width=True)
 
-    st.info("👈 Please select a module from the sidebar menu to view detailed records.")
-
-# -----------------------------------------------------------------------------
-# 4. Page Modules (Only one loads at a time)
-# -----------------------------------------------------------------------------
-elif selected_page == "🩺 PME Tracking":
+elif page == "PME":
     st.title("🩺 Periodic Medical Examination (PME)")
     if not df_pme.empty:
         st.dataframe(df_pme)
@@ -219,10 +236,8 @@ elif selected_page == "🩺 PME Tracking":
             st.download_button("📄 Download Overdue PME PDF", data=pdf_bytes, file_name="Overdue_PME.pdf", mime="application/pdf")
         else:
             st.success("All personnel are currently compliant.")
-    else:
-        st.info("No data loaded. Ensure your Excel file has a tab named 'PME'.")
 
-elif selected_page == "📚 4-Year Refresher":
+elif page == "Refresher":
     st.title("📚 4-Year Refresher Scheduling")
     if not df_refresher.empty:
         st.dataframe(df_refresher)
@@ -234,120 +249,81 @@ elif selected_page == "📚 4-Year Refresher":
             st.download_button("📄 Download Overdue Refresher PDF", data=pdf_bytes, file_name="Overdue_Refresher.pdf", mime="application/pdf")
         else:
             st.success("All personnel are currently compliant.")
-    else:
-        st.info("No data loaded. Ensure your Excel file has a tab named 'Refresher'.")
 
-elif selected_page == "🚑 First Aid":
+elif page == "First Aid":
     st.title("🚑 First Aid Training Tracker")
     if not df_firstaid.empty:
         st.dataframe(df_firstaid)
-    else:
-        st.info("No data loaded. Ensure your Excel file has a tab named 'First_Aid'.")
 
-elif selected_page == "📋 Supervisor":
-    st.title("📋 Supervisor Training & Certification")
-    if not df_supervisor.empty:
-        st.dataframe(df_supervisor)
-    else:
-        st.info("No data loaded. Ensure your Excel file has a tab named 'Supervisor'.")
-
-elif selected_page == "🚜 HEMM":
+elif page == "HEMM":
     st.title("🚜 HEMM Operator Competency")
     equipment_filter = st.selectbox("Filter by Equipment Type:", ["All", "Dumper", "Dozer", "Excavator", "Grader"])
 
-elif selected_page == "🔥 Fire Fighting":
-    st.title("🔥 Fire Fighting & Mock Drills")
-    if not df_fire.empty:
-        st.dataframe(df_fire)
-    else:
-        st.info("No data loaded. Ensure your Excel file has a tab named 'Fire_Fighting'.")
+elif page == "Supervisor":
+    st.title("📋 Supervisor Training & Certification")
+    if not df_supervisor.empty:
+        st.dataframe(df_supervisor)
 
-elif selected_page == "⚙️ OEM":
-    st.title("⚙️ OEM Training")
-    if not df_oem.empty:
-        st.dataframe(df_oem)
-    else:
-        st.info("No data loaded. Ensure your Excel file has a tab named 'OEM_Training'.")
+elif page == "Misc":
+    tab_fire, tab_oem, tab_service = st.tabs(["🔥 Fire Fighting", "⚙️ OEM Training", "🔧 Service & Maintenance"])
+    with tab_fire:
+        if not df_fire.empty: st.dataframe(df_fire)
+    with tab_oem:
+        if not df_oem.empty: st.dataframe(df_oem)
+    with tab_service:
+        if not df_service.empty: st.dataframe(df_service)
 
-elif selected_page == "🔧 Service":
-    st.title("🔧 Service & Maintenance Training")
-    if not df_service.empty:
-        st.dataframe(df_service)
-    else:
-        st.info("No data loaded. Ensure your Excel file has a tab named 'Service_Training'.")
-
-elif selected_page == "📈 Analytics":
-    st.title("📈 Master Compliance Analytics")
+elif page == "Analytics":
+    tab_charts, tab_ai = st.tabs(["📈 Data Analytics", "💬 AI Assistant"])
     
-    if not df_pme.empty and 'Compliance Year' in df_pme.columns:
-        st.markdown("#### 🩺 Periodic Medical Examination (PME) Trends")
-        
-        valid_years = df_pme.dropna(subset=['Compliance Year'])
-        year_summary = valid_years.groupby('Compliance Year').size().reset_index(name='Trained Personnel')
-        year_summary['Compliance Year'] = year_summary['Compliance Year'].astype(int).astype(str)
-        
-        # Interactive Gradient Bar Chart
-        fig_year = px.bar(year_summary, x='Compliance Year', y='Trained Personnel', 
-                          text_auto=True, color='Trained Personnel', color_continuous_scale='Blues',
-                          title="Year-Wise Compliance Volume")
-        st.plotly_chart(fig_year, use_container_width=True)
-
-        valid_months = df_pme.dropna(subset=['Compliance Month'])
-        month_summary = valid_months.groupby('Compliance Month').size().reset_index(name='Completed Trainings')
-        month_summary['Sort Date'] = pd.to_datetime(month_summary['Compliance Month'], format='%b %Y')
-        month_summary = month_summary.sort_values('Sort Date')
-        
-        # Interactive Line Chart with Data Points
-        fig_month = px.line(month_summary, x='Compliance Month', y='Completed Trainings', 
-                            markers=True, title="Month-Wise Due vs. Compliance",
-                            color_discrete_sequence=['#ff4b4b'])
-        st.plotly_chart(fig_month, use_container_width=True)
-
-    st.divider()
-
-    if not df_firstaid.empty and 'Last First Aid Year' in df_firstaid.columns:
-        st.markdown("#### 🚑 First Aid Training Breakdowns")
-        col_fa1, col_fa2 = st.columns(2)
-        
-        with col_fa1:
-            category_col = st.selectbox("Select metric to analyze:", options=df_firstaid.columns.tolist(), index=df_firstaid.columns.tolist().index('F3') if 'F3' in df_firstaid.columns else 0)
-            if category_col:
-                fa_type_summary = df_firstaid.groupby(category_col).size().reset_index(name='Total Trained')
-                
-                # Interactive Pie Chart
-                fig_fa_pie = px.pie(fa_type_summary, values='Total Trained', names=category_col, 
-                                    hole=0.4, title=f"Breakdown by {category_col}",
-                                    color_discrete_sequence=px.colors.qualitative.Set2)
-                st.plotly_chart(fig_fa_pie, use_container_width=True)
-                
-        with col_fa2:
-            valid_fa_years = df_firstaid.dropna(subset=['Last First Aid Year'])
-            fa_year_summary = valid_fa_years.groupby('Last First Aid Year').size().reset_index(name='Trained Personnel')
-            fa_year_summary['Last First Aid Year'] = fa_year_summary['Last First Aid Year'].astype(int).astype(str)
+    with tab_charts:
+        if not df_pme.empty and 'Compliance Year' in df_pme.columns:
+            st.markdown("#### 🩺 Periodic Medical Examination (PME) Trends")
+            valid_years = df_pme.dropna(subset=['Compliance Year'])
+            year_summary = valid_years.groupby('Compliance Year').size().reset_index(name='Trained Personnel')
+            year_summary['Compliance Year'] = year_summary['Compliance Year'].astype(int).astype(str)
+            fig_year = px.bar(year_summary, x='Compliance Year', y='Trained Personnel', text_auto=True, color='Trained Personnel', color_continuous_scale='Blues', title="Year-Wise Compliance Volume")
+            st.plotly_chart(fig_year, use_container_width=True)
             
-            # Interactive Bar Chart
-            fig_fa_bar = px.bar(fa_year_summary, x='Last First Aid Year', y='Trained Personnel', 
-                                text_auto=True, title="Annual First Aid Certifications",
-                                color_discrete_sequence=['#2ca02c'])
-            st.plotly_chart(fig_fa_bar, use_container_width=True)
+            valid_months = df_pme.dropna(subset=['Compliance Month'])
+            month_summary = valid_months.groupby('Compliance Month').size().reset_index(name='Completed Trainings')
+            month_summary['Sort Date'] = pd.to_datetime(month_summary['Compliance Month'], format='%b %Y')
+            month_summary = month_summary.sort_values('Sort Date')
+            fig_month = px.line(month_summary, x='Compliance Month', y='Completed Trainings', markers=True, title="Month-Wise Due vs. Compliance", color_discrete_sequence=['#ff4b4b'])
+            st.plotly_chart(fig_month, use_container_width=True)
 
-elif selected_page == "💬 AI Assistant":
-    st.title("💬 MineSync AI Assistant")
-    st.markdown("Ask questions about training schedules, statutory compliance, or dashboard data.")
-    
-    if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": "Hello! I am your MineSync compliance assistant. How can I help you today?"}]
+        st.divider()
 
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+        if not df_firstaid.empty and 'Last First Aid Year' in df_firstaid.columns:
+            st.markdown("#### 🚑 First Aid Training Breakdowns")
+            col_fa1, col_fa2 = st.columns(2)
+            with col_fa1:
+                category_col = st.selectbox("Select metric to analyze:", options=df_firstaid.columns.tolist(), index=df_firstaid.columns.tolist().index('F3') if 'F3' in df_firstaid.columns else 0)
+                if category_col:
+                    fa_type_summary = df_firstaid.groupby(category_col).size().reset_index(name='Total Trained')
+                    fig_fa_pie = px.pie(fa_type_summary, values='Total Trained', names=category_col, hole=0.4, title=f"Breakdown by {category_col}", color_discrete_sequence=px.colors.qualitative.Set2)
+                    st.plotly_chart(fig_fa_pie, use_container_width=True)
+            with col_fa2:
+                valid_fa_years = df_firstaid.dropna(subset=['Last First Aid Year'])
+                fa_year_summary = valid_fa_years.groupby('Last First Aid Year').size().reset_index(name='Trained Personnel')
+                fa_year_summary['Last First Aid Year'] = fa_year_summary['Last First Aid Year'].astype(int).astype(str)
+                fig_fa_bar = px.bar(fa_year_summary, x='Last First Aid Year', y='Trained Personnel', text_auto=True, title="Annual First Aid Certifications", color_discrete_sequence=['#2ca02c'])
+                st.plotly_chart(fig_fa_bar, use_container_width=True)
 
-    if prompt := st.chat_input("E.g., How many people are overdue for PME?"):
-        with st.chat_message("user"):
-            st.markdown(prompt)
-        st.session_state.messages.append({"role": "user", "content": prompt})
+    with tab_ai:
+        st.markdown("Ask questions about training schedules, statutory compliance, or dashboard data.")
+        if "messages" not in st.session_state:
+            st.session_state.messages = [{"role": "assistant", "content": "Hello! I am your MineSync compliance assistant. How can I help you today?"}]
 
-        response = f"You asked: '{prompt}'. I am currently in demonstration mode. To analyze the Excel data directly, my backend needs to be connected to an AI API."
-        with st.chat_message("assistant"):
-            st.markdown(response)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+        if prompt := st.chat_input("E.g., How many people are overdue for PME?"):
+            with st.chat_message("user"):
+                st.markdown(prompt)
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            response = f"You asked: '{prompt}'. I am currently in demonstration mode. To analyze the Excel data directly, my backend needs to be connected to an AI API."
+            with st.chat_message("assistant"):
+                st.markdown(response)
+            st.session_state.messages.append({"role": "assistant", "content": response})
