@@ -57,7 +57,7 @@ if not st.session_state.authenticated:
                 st.error("❌ Invalid Username or Password. Please try again.")
     st.stop()
 
-st.sidebar.title("👤 User Profile")
+st.sidebar.title("👤 Amit")
 st.sidebar.button("🔓 Secure Logout", on_click=lambda: st.session_state.update(authenticated=False))
 st.sidebar.divider()
 
