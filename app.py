@@ -48,6 +48,11 @@ st.markdown("""
         div[data-testid="stSidebar"] .stButton>button { 
             background: #ff4b4b; height: auto; margin-top: 10px;
         }
+        
+        .stTextInput>div>div>input {
+            border: 2px solid #1e3d59 !important;
+            border-radius: 8px;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -85,7 +90,7 @@ if not st.session_state.authenticated:
 def load_master_data():
     today = pd.to_datetime('today')
     
-    # --- A. Load Master Workforce Base (The 476 Employees) ---
+    # --- A. Load Master Workforce Base ---
     try:
         df_emp = pd.read_excel("Mines_Emp_list.xlsx")
         df_emp.columns = df_emp.columns.astype(str).str.strip()
@@ -123,7 +128,6 @@ def load_master_data():
         df_pme_raw['Date of test'] = pd.to_datetime(df_pme_raw['Date of test'], format='%d.%m.%Y', errors='coerce')
         df_pme_raw = df_pme_raw.sort_values('Date of test').groupby('Pl.No.', as_index=False).last()
         
-        # Cross-reference with the 476 Master List
         df_pme = df_base.merge(df_pme_raw[['Pl.No.', 'Date of test']], left_on='Pers No', right_on='Pl.No.', how='left')
     else:
         df_pme = df_base.copy()
@@ -154,7 +158,6 @@ def load_master_data():
                 master_data[sheet] = df
     except Exception: pass
 
-    # Function to cross-reference other modules against the 476 Master List
     def merge_to_base(sheet_name, cols_to_keep, status_col='Due Alert'):
         df_raw = master_data[sheet_name]
         if not df_raw.empty and 'Pers No' in df_raw.columns:
@@ -173,6 +176,13 @@ def load_master_data():
     df_supervisor = merge_to_base('Supervisor', ['Supervisor Last Date', 'Supervisor Expiry Date', 'Due Alert'])
     df_fire = merge_to_base('Fire_Fighting', ['Fire Fighting Last Date', 'Fire Fighting Expiry Date', 'Due Alert'])
     
+    # --- DATE CLEANER: Remove 00:00:00 by formatting dates to DD-MM-YYYY ---
+    for df in [df_pme, df_refresher, df_firstaid, df_supervisor, df_fire, master_data['OEM_Training'], master_data['Service_Training']]:
+        if not df.empty:
+            for col in df.columns:
+                if 'date' in col.lower() or pd.api.types.is_datetime64_any_dtype(df[col]):
+                    df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d-%m-%Y').fillna('')
+
     return df_pme, df_refresher, df_firstaid, df_supervisor, df_fire, master_data['OEM_Training'], master_data['Service_Training']
 
 df_pme, df_refresher, df_firstaid, df_supervisor, df_fire, df_oem, df_service = load_master_data()
@@ -250,9 +260,7 @@ def create_pdf_report(dataframe, title):
     for i, row in dataframe.iterrows():
         record_parts = []
         for col in available_cols:
-            val = row[col]
-            if pd.api.types.is_datetime64_any_dtype(type(val)) and pd.notna(val): val = val.strftime('%d-%m-%Y')
-            record_parts.append(f"{val}")
+            record_parts.append(f"{row[col]}")
         pdf.cell(200, 8, txt=" | ".join(record_parts), ln=True)
     return pdf.output(dest='S').encode('latin-1')
 
