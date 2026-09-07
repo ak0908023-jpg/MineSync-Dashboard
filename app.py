@@ -560,16 +560,46 @@ elif page == "Analytics":
 
     with tab_ai:
         st.markdown("Ask questions about training schedules, statutory compliance, or dashboard data.")
+        
+        # Initialize chat history
         if "messages" not in st.session_state: 
-            st.session_state.messages = [{"role": "assistant", "content": "How can I help you today?"}]
+            st.session_state.messages = [{"role": "assistant", "content": "Hello! I am your MineSync Local Assistant. Ask me how many people are overdue for PME, Refresher, or First Aid."}]
+            
+        # Display chat history
         for message in st.session_state.messages:
             with st.chat_message(message["role"]): 
                 st.markdown(message["content"])
+                
+        # Accept user input
         if prompt := st.chat_input("E.g., How many people are overdue for PME?"):
+            # Add user message to chat history
             with st.chat_message("user"): 
                 st.markdown(prompt)
             st.session_state.messages.append({"role": "user", "content": prompt})
-            response = f"You asked: '{prompt}'. I am currently in demonstration mode."
+            
+            # --- SMART LOCAL ASSISTANT LOGIC ---
+            prompt_lower = prompt.lower()
+            
+            if "pme" in prompt_lower and "overdue" in prompt_lower:
+                count = len(df_pme_latest[df_pme_latest['Status'] == 'Overdue'])
+                response = f"🚨 There are currently **{count} employees** overdue for their Periodic Medical Examination (PME)."
+                
+            elif "refresher" in prompt_lower and "overdue" in prompt_lower:
+                count = len(df_refresher[df_refresher['Status'] == 'Overdue'])
+                response = f"📚 We have **{count} employees** overdue for their Statutory Refresher training."
+                
+            elif "first aid" in prompt_lower and "overdue" in prompt_lower:
+                count = len(df_firstaid[df_firstaid['Status'] == 'Overdue'])
+                response = f"🚑 There are **{count} employees** with expired First Aid certifications."
+                
+            elif "total employees" in prompt_lower or "how many employees" in prompt_lower or "master" in prompt_lower:
+                total = len(df_pme_latest)
+                response = f"👥 The MineSync Master Roster is currently tracking **{total} employees**."
+                
+            else:
+                response = "I am currently running locally. Try asking me:\n- *How many people are overdue for PME?*\n- *How many are overdue for Refresher?*\n- *What is the total employee count?*"
+            
+            # Display assistant response
             with st.chat_message("assistant"): 
                 st.markdown(response)
             st.session_state.messages.append({"role": "assistant", "content": response})
