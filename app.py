@@ -11,6 +11,41 @@ import plotly.express as px
 st.set_page_config(page_title="MineSync Compliance Manager", page_icon="⚙️", layout="wide")
 
 st.markdown("""
+    /* ----------------------------------- */
+        /* CUSTOM TAB COLORS                   */
+        /* ----------------------------------- */
+        
+        /* Style the inactive tabs */
+        div[data-testid="stTabs"] button[data-baseweb="tab"] {
+            background-color: #e2e8f0; 
+            color: #1e3d59; 
+            border-radius: 8px 8px 0px 0px; /* Rounds the top corners */
+            padding: 10px 20px;
+            font-weight: bold;
+            border: 1px solid #cbd5e1;
+            border-bottom: none;
+            margin-right: 5px;
+            transition: all 0.3s ease;
+        }
+        
+        /* Hover effect for inactive tabs */
+        div[data-testid="stTabs"] button[data-baseweb="tab"]:hover {
+            background-color: #cbd5e1;
+        }
+        
+        /* Style the currently selected (active) tab */
+        div[data-testid="stTabs"] button[aria-selected="true"] {
+            background: linear-gradient(to right, #1e3d59, #2b577d) !important;
+            color: white !important;
+            border: none;
+        }
+        
+        /* Hide Streamlit's default red bottom-border highlight */
+        div[data-testid="stTabs"] div[data-baseweb="tab-highlight"] {
+            display: none;
+        }
+    
+    
     <style>
         .main { background-color: #f4f6f9; }
         h1, h2, h3 { color: #1e3d59; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
