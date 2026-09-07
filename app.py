@@ -221,6 +221,8 @@ def load_master_data():
     def build_pme_module(raw_df):
         if not raw_df.empty and 'Pl.No.' in raw_df.columns and 'Date of test' in raw_df.columns:
             df_out = df_base.merge(raw_df[['Pl.No.', 'Date of test']], left_on='Pers No', right_on='Pl.No.', how='left')
+            # Remove redundant Pl.No. column after merge
+            df_out = df_out.drop(columns=['Pl.No.'])
         else:
             df_out = df_base.copy()
             df_out['Date of test'] = pd.NaT
