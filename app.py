@@ -87,7 +87,7 @@ def load_master_data():
     
     # --- A. Load Master Workforce Base (The 476 Employees) ---
     try:
-        df_emp = pd.read_excel("Mines_Emp_list (1).xlsx")
+        df_emp = pd.read_excel("Mines_Emp_list.xlsx")
         df_emp.columns = df_emp.columns.astype(str).str.strip()
         df_base = df_emp[['pers_no', 'name', 'desg', 'dept_nm']].copy()
         df_base.rename(columns={'pers_no': 'Pers No', 'name': 'Name', 'desg': 'Designation', 'dept_nm': 'Department'}, inplace=True)
