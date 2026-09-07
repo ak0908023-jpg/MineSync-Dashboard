@@ -93,24 +93,27 @@ st.markdown("""
         /* CUSTOM TAB COLORS                   */
         /* ----------------------------------- */
         div[data-testid="stTabs"] button[data-baseweb="tab"] {
-            background-color: #e2e8f0; 
-            color: #1e3d59; 
+            background-color: #ffffff; 
+            color: #555555;            
             border-radius: 8px 8px 0px 0px; 
             padding: 10px 20px;
             font-weight: bold;
-            border: 1px solid #cbd5e1;
+            border: 1px solid #d1d5db;
             border-bottom: none;
             margin-right: 5px;
             transition: all 0.3s ease;
         }
+        
         div[data-testid="stTabs"] button[data-baseweb="tab"]:hover {
-            background-color: #cbd5e1;
+            background-color: #f3f4f6; 
         }
+        
         div[data-testid="stTabs"] button[aria-selected="true"] {
-            background: linear-gradient(to right, #1e3d59, #2b577d) !important;
-            color: white !important;
+            background: linear-gradient(to right, #00c6ff, #0072ff) !important; 
+            color: white !important;   
             border: none;
         }
+        
         div[data-testid="stTabs"] div[data-baseweb="tab-highlight"] {
             display: none;
         }
