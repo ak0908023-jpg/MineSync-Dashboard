@@ -11,7 +11,6 @@ import plotly.express as px
 st.set_page_config(page_title="MineSync Compliance Manager", page_icon="⚙️", layout="wide")
 
 st.markdown("""
-    
     <style>
         .main { background-color: #f4f6f9; }
         h1, h2, h3 { color: #1e3d59; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -32,14 +31,9 @@ st.markdown("""
         
         .stButton>button {
             background: linear-gradient(to right, #1e3d59, #2b577d); 
-            color: white; 
-            border-radius: 8px; 
-            border: none;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.15); 
-            transition: all 0.3s ease;
-            height: 60px; 
-            font-size: 16px; 
-            font-weight: bold;
+            color: white; border-radius: 8px; border: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15); transition: all 0.3s ease;
+            height: 60px; font-size: 16px; font-weight: bold;
         }
         .stButton>button:hover { 
             background: linear-gradient(to right, #2b577d, #3b6998); 
@@ -51,9 +45,23 @@ st.markdown("""
         }
         
         .stTextInput>div>div>input {
-            border: 2px solid #1e3d59 !important;
-            border-radius: 8px;
+            border: 2px solid #1e3d59 !important; border-radius: 8px;
         }
+        
+        div[data-testid="stTabs"] button[data-baseweb="tab"] {
+            background-color: #e2e8f0; color: #1e3d59; 
+            border-radius: 8px 8px 0px 0px; padding: 10px 20px;
+            font-weight: bold; border: 1px solid #cbd5e1;
+            border-bottom: none; margin-right: 5px; transition: all 0.3s ease;
+        }
+        div[data-testid="stTabs"] button[data-baseweb="tab"]:hover {
+            background-color: #cbd5e1;
+        }
+        div[data-testid="stTabs"] button[aria-selected="true"] {
+            background: linear-gradient(to right, #1e3d59, #2b577d) !important;
+            color: white !important; border: none;
+        }
+        div[data-testid="stTabs"] div[data-baseweb="tab-highlight"] { display: none; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -66,8 +74,7 @@ USER_CREDENTIALS = {
     "safety_officer": "dgms2026"
 }
 
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
+if "authenticated" not in st.session_state: st.session_state.authenticated = False
 
 if not st.session_state.authenticated:
     st.markdown("<br><br><h1 style='text-align: center; color: #1e3d59;'>🔒 MineSync Secure Portal</h1>", unsafe_allow_html=True)
@@ -99,14 +106,13 @@ def load_master_data():
         df_base.rename(columns={'pers_no': 'Pers No', 'name': 'Name', 'desg': 'Designation', 'dept_nm': 'Department'}, inplace=True)
         df_base['Pers No'] = pd.to_numeric(df_base['Pers No'], errors='coerce')
     except Exception as e:
-        st.error(f"Failed to load Base Employee List: {e}")
         df_base = pd.DataFrame(columns=['Pers No', 'Name', 'Designation', 'Department'])
 
-    # --- B. Load & Merge PME ---
-    pme_dfs = []
-    for file in ["PME 2025.xlsx", "PME 2026.xlsx"]:
+    # --- B. Load PME Separately for 2025, 2026, and Latest ---
+    def process_pme_file(filename):
+        dfs = []
         try:
-            xls_pme = pd.ExcelFile(file)
+            xls_pme = pd.ExcelFile(filename)
             for sheet in xls_pme.sheet_names:
                 df = pd.read_excel(xls_pme, sheet_name=sheet)
                 header_idx = None
@@ -119,27 +125,39 @@ def load_master_data():
                 for col in df.columns:
                     if 'date of test' in col.lower():
                         df.rename(columns={col: 'Date of test'}, inplace=True)
-                pme_dfs.append(df)
+                dfs.append(df)
         except Exception: pass
         
-    if pme_dfs:
-        df_pme_raw = pd.concat(pme_dfs, ignore_index=True)
-        df_pme_raw['Pl.No.'] = pd.to_numeric(df_pme_raw['Pl.No.'], errors='coerce')
-        df_pme_raw = df_pme_raw.dropna(subset=['Pl.No.'])
-        df_pme_raw['Date of test'] = pd.to_datetime(df_pme_raw['Date of test'], format='%d.%m.%Y', errors='coerce')
-        df_pme_raw = df_pme_raw.sort_values('Date of test').groupby('Pl.No.', as_index=False).last()
-        
-        df_pme = df_base.merge(df_pme_raw[['Pl.No.', 'Date of test']], left_on='Pers No', right_on='Pl.No.', how='left')
-    else:
-        df_pme = df_base.copy()
-        df_pme['Date of test'] = pd.NaT
+        if dfs:
+            df_raw = pd.concat(dfs, ignore_index=True)
+            df_raw['Pl.No.'] = pd.to_numeric(df_raw['Pl.No.'], errors='coerce')
+            df_raw = df_raw.dropna(subset=['Pl.No.'])
+            df_raw['Date of test'] = pd.to_datetime(df_raw['Date of test'], format='%d.%m.%Y', errors='coerce')
+            df_raw = df_raw.sort_values('Date of test').groupby('Pl.No.', as_index=False).last()
+            return df_raw
+        return pd.DataFrame()
 
-    df_pme['Due Date'] = df_pme['Date of test'] + pd.DateOffset(years=1)
-    df_pme['Compliance Year'] = df_pme['Date of test'].dt.year
-    df_pme['Compliance Month'] = df_pme['Date of test'].dt.strftime('%b %Y')
-    df_pme['Status'] = df_pme['Due Date'].apply(lambda x: 'Valid' if pd.notna(x) and x >= today else 'Overdue')
-    
-    # --- C. Load & Merge Training Desk Modules ---
+    raw_2025 = process_pme_file("PME 2025.xlsx")
+    raw_2026 = process_pme_file("PME 2026.xlsx")
+    raw_latest = pd.concat([raw_2025, raw_2026], ignore_index=True) if not raw_2025.empty or not raw_2026.empty else pd.DataFrame()
+    if not raw_latest.empty:
+        raw_latest = raw_latest.sort_values('Date of test').groupby('Pl.No.', as_index=False).last()
+
+    def build_pme_module(raw_df):
+        if not raw_df.empty:
+            df_out = df_base.merge(raw_df[['Pl.No.', 'Date of test']], left_on='Pers No', right_on='Pl.No.', how='left')
+        else:
+            df_out = df_base.copy()
+            df_out['Date of test'] = pd.NaT
+        df_out['Due Date'] = df_out['Date of test'] + pd.DateOffset(years=1)
+        df_out['Status'] = df_out['Due Date'].apply(lambda x: 'Valid' if pd.notna(x) and x >= today else 'Overdue')
+        return df_out
+
+    df_pme_latest = build_pme_module(raw_latest)
+    df_pme_2025 = build_pme_module(raw_2025)
+    df_pme_2026 = build_pme_module(raw_2026)
+
+    # --- C. Load Training Desk Modules ---
     master_data = {'Refresher': pd.DataFrame(), 'First_Aid': pd.DataFrame(), 'Supervisor': pd.DataFrame(), 'Fire_Fighting': pd.DataFrame(), 'OEM_Training': pd.DataFrame(), 'Service_Training': pd.DataFrame()}
     try:
         xls = pd.ExcelFile("Training_Desk_Final_OEM_Service_v2 (2).xlsx")
@@ -152,7 +170,6 @@ def load_master_data():
                         h_idx = i; break
                 if h_idx is not None:
                     df = pd.read_excel(xls, sheet_name=sheet, header=h_idx + 1)
-                
                 df.columns = df.columns.astype(str).str.strip()
                 if 'Pers No' in df.columns:
                     df['Pers No'] = pd.to_numeric(df['Pers No'], errors='coerce')
@@ -177,16 +194,16 @@ def load_master_data():
     df_supervisor = merge_to_base('Supervisor', ['Supervisor Last Date', 'Supervisor Expiry Date', 'Due Alert'])
     df_fire = merge_to_base('Fire_Fighting', ['Fire Fighting Last Date', 'Fire Fighting Expiry Date', 'Due Alert'])
     
-    # --- DATE CLEANER: Remove 00:00:00 by formatting dates to DD-MM-YYYY ---
-    for df in [df_pme, df_refresher, df_firstaid, df_supervisor, df_fire, master_data['OEM_Training'], master_data['Service_Training']]:
+    # --- DATE CLEANER ---
+    for df in [df_pme_latest, df_pme_2025, df_pme_2026, df_refresher, df_firstaid, df_supervisor, df_fire, master_data['OEM_Training'], master_data['Service_Training']]:
         if not df.empty:
             for col in df.columns:
                 if 'date' in col.lower() or pd.api.types.is_datetime64_any_dtype(df[col]):
                     df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d-%m-%Y').fillna('')
 
-    return df_pme, df_refresher, df_firstaid, df_supervisor, df_fire, master_data['OEM_Training'], master_data['Service_Training']
+    return df_pme_latest, df_pme_2025, df_pme_2026, df_refresher, df_firstaid, df_supervisor, df_fire, master_data['OEM_Training'], master_data['Service_Training']
 
-df_pme, df_refresher, df_firstaid, df_supervisor, df_fire, df_oem, df_service = load_master_data()
+df_pme_latest, df_pme_2025, df_pme_2026, df_refresher, df_firstaid, df_supervisor, df_fire, df_oem, df_service = load_master_data()
 
 # -----------------------------------------------------------------------------
 # 3. Sidebar Search & Global Navigation
@@ -209,7 +226,7 @@ if search_query:
                     icon = "🚨" if status == 'Overdue' else "✅"
                     st.sidebar.markdown(f"**{name}:** {icon} {status}")
     
-    search_df(df_pme, "PME")
+    search_df(df_pme_latest, "PME")
     search_df(df_refresher, "Refresher")
     search_df(df_firstaid, "First Aid")
     search_df(df_fire, "Fire Fighting")
@@ -260,14 +277,13 @@ def create_pdf_report(dataframe, title):
     available_cols = [c for c in ['Pers No', 'Name', 'Due Date', 'Refresher Expiry Date', 'First Aid Expiry Year'] if c in dataframe.columns][:3]
     for i, row in dataframe.iterrows():
         record_parts = []
-        for col in available_cols:
-            record_parts.append(f"{row[col]}")
+        for col in available_cols: record_parts.append(f"{row[col]}")
         pdf.cell(200, 8, txt=" | ".join(record_parts), ln=True)
     return pdf.output(dest='S').encode('latin-1')
 
 if page == "Enterprise Overview":
-    total_emp = len(df_pme)
-    ovd_pme = len(df_pme[df_pme['Status'] == 'Overdue'])
+    total_emp = len(df_pme_latest)
+    ovd_pme = len(df_pme_latest[df_pme_latest['Status'] == 'Overdue'])
     ovd_ref = len(df_refresher[df_refresher['Status'] == 'Overdue'])
     ovd_fa = len(df_firstaid[df_firstaid['Status'] == 'Overdue'])
     ovd_fire = len(df_fire[df_fire['Status'] == 'Overdue'])
@@ -304,15 +320,43 @@ if page == "Enterprise Overview":
 
 elif page == "PME":
     st.title("🩺 Periodic Medical Examination")
-    if not df_pme.empty:
-        with st.expander("📂 View Merged PME Master Data (Against 476 Base)"): st.dataframe(df_pme)
-        st.subheader("Action Required: PME Overdue")
-        overdue_pme = df_pme[df_pme['Status'] == 'Overdue']
-        if not overdue_pme.empty:
-            st.dataframe(overdue_pme.style.apply(highlight_overdue, axis=1))
-            pdf_bytes = create_pdf_report(overdue_pme, "PME Overdue Report")
-            st.download_button("📄 Download PDF", data=pdf_bytes, file_name="Overdue_PME.pdf", mime="application/pdf")
-        else: st.success("All personnel are currently compliant.")
+    tab_latest, tab_2026, tab_2025 = st.tabs(["🌟 Current Status", "📅 2026 Records", "📅 2025 Records"])
+    
+    with tab_latest:
+        st.markdown("#### Master PME Tracking (Active Deadlines)")
+        if not df_pme_latest.empty:
+            with st.expander("📂 View Merged Latest Data (Against 476 Base)"): st.dataframe(df_pme_latest)
+            st.subheader("Action Required: PME Overdue")
+            overdue_pme = df_pme_latest[df_pme_latest['Status'] == 'Overdue']
+            if not overdue_pme.empty:
+                st.dataframe(overdue_pme.style.apply(highlight_overdue, axis=1))
+                pdf_bytes = create_pdf_report(overdue_pme, "PME Overdue Report")
+                st.download_button("📄 Download PDF", data=pdf_bytes, file_name="Overdue_PME.pdf", mime="application/pdf")
+            else: st.success("All personnel are currently compliant.")
+            
+    with tab_2026:
+        st.markdown("#### 2026 PME Completion Overview")
+        if not df_pme_2026.empty:
+            total_26 = len(df_pme_2026)
+            tested_26 = sum(df_pme_2026['Date of test'] != '')
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Base Roster", total_26)
+            c2.metric("Tested in 2026", tested_26)
+            c3.metric("Missing 2026 Test", total_26 - tested_26)
+            c4.metric("2026 Compliance", f"{(tested_26 / total_26 * 100):.1f}%" if total_26 > 0 else "0%")
+            st.dataframe(df_pme_2026)
+            
+    with tab_2025:
+        st.markdown("#### 2025 PME Historical Overview")
+        if not df_pme_2025.empty:
+            total_25 = len(df_pme_2025)
+            tested_25 = sum(df_pme_2025['Date of test'] != '')
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Base Roster", total_25)
+            c2.metric("Tested in 2025", tested_25)
+            c3.metric("Did Not Test", total_25 - tested_25)
+            c4.metric("2025 Compliance Rate", f"{(tested_25 / total_25 * 100):.1f}%" if total_25 > 0 else "0%")
+            st.dataframe(df_pme_2025)
 
 elif page == "Refresher":
     st.title("📚 Statutory Refresher")
@@ -361,12 +405,16 @@ elif page == "Analytics":
     tab_charts, tab_ai = st.tabs(["📈 Data Analytics", "💬 AI Assistant"])
     
     with tab_charts:
-        if not df_pme.empty and 'Compliance Year' in df_pme.columns:
+        df_chart = df_pme_latest.copy()
+        df_chart['Compliance Year'] = pd.to_datetime(df_chart['Date of test'], errors='coerce').dt.year
+        df_chart['Compliance Month'] = pd.to_datetime(df_chart['Date of test'], errors='coerce').dt.strftime('%b %Y')
+        
+        if not df_chart.empty and 'Compliance Year' in df_chart.columns:
             st.markdown("#### 🩺 Periodic Medical Examination (PME) Trends")
             col_rep1, col_rep2 = st.columns(2)
             
             with col_rep1:
-                valid_years = df_pme.dropna(subset=['Compliance Year'])
+                valid_years = df_chart.dropna(subset=['Compliance Year'])
                 year_summary = valid_years.groupby('Compliance Year').size().reset_index(name='Trained Personnel')
                 fig_year = px.bar(year_summary, x='Compliance Year', y='Trained Personnel', 
                                   text_auto=True, color_continuous_scale='Blues', 
@@ -375,7 +423,7 @@ elif page == "Analytics":
                 st.plotly_chart(fig_year, use_container_width=True)
                 
             with col_rep2:
-                valid_months = df_pme.dropna(subset=['Compliance Month'])
+                valid_months = df_chart.dropna(subset=['Compliance Month'])
                 month_summary = valid_months.groupby('Compliance Month').size().reset_index(name='Completed Trainings')
                 month_summary['Sort Date'] = pd.to_datetime(month_summary['Compliance Month'], format='%b %Y')
                 month_summary = month_summary.sort_values('Sort Date')
@@ -385,41 +433,14 @@ elif page == "Analytics":
                 fig_month.update_layout(plot_bgcolor="rgba(0,0,0,0)")
                 st.plotly_chart(fig_month, use_container_width=True)
 
-        st.divider()
-
-        if not df_firstaid.empty and 'First Aid Last Year' in df_firstaid.columns:
-            st.markdown("#### 🚑 First Aid Training Breakdowns")
-            col_fa1, col_fa2 = st.columns(2)
-            
-            with col_fa1:
-                valid_fa_years = df_firstaid.dropna(subset=['First Aid Last Year'])
-                fa_year_summary = valid_fa_years.groupby('First Aid Last Year').size().reset_index(name='Trained Personnel')
-                fig_fa_bar = px.bar(fa_year_summary, x='First Aid Last Year', y='Trained Personnel', 
-                                    text_auto=True, title="Annual First Aid Certifications", 
-                                    color_discrete_sequence=['#2ca02c'])
-                fig_fa_bar.update_layout(plot_bgcolor="rgba(0,0,0,0)")
-                st.plotly_chart(fig_fa_bar, use_container_width=True)
-                
-            with col_fa2:
-                if 'First Aid Type' in df_firstaid.columns:
-                    fa_type_summary = df_firstaid.groupby('First Aid Type').size().reset_index(name='Total Trained')
-                    fig_fa_pie = px.pie(fa_type_summary, values='Total Trained', names='First Aid Type', 
-                                        hole=0.4, title="Breakdown by First Aid Type", 
-                                        color_discrete_sequence=px.colors.qualitative.Set2)
-                    st.plotly_chart(fig_fa_pie, use_container_width=True)
-
     with tab_ai:
         st.markdown("Ask questions about training schedules, statutory compliance, or dashboard data.")
-        if "messages" not in st.session_state: 
-            st.session_state.messages = [{"role": "assistant", "content": "How can I help you today?"}]
+        if "messages" not in st.session_state: st.session_state.messages = [{"role": "assistant", "content": "How can I help you today?"}]
         for message in st.session_state.messages:
-            with st.chat_message(message["role"]): 
-                st.markdown(message["content"])
+            with st.chat_message(message["role"]): st.markdown(message["content"])
         if prompt := st.chat_input("E.g., How many people are overdue for PME?"):
-            with st.chat_message("user"): 
-                st.markdown(prompt)
+            with st.chat_message("user"): st.markdown(prompt)
             st.session_state.messages.append({"role": "user", "content": prompt})
             response = f"You asked: '{prompt}'. I am currently in demonstration mode."
-            with st.chat_message("assistant"): 
-                st.markdown(response)
+            with st.chat_message("assistant"): st.markdown(response)
             st.session_state.messages.append({"role": "assistant", "content": response})
