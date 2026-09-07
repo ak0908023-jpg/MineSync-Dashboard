@@ -292,21 +292,42 @@ if search_query:
     st.sidebar.markdown("#### 📄 Scan Results")
     query_str = str(search_query).lower()
     
-    def search_df(df, name):
-        if not df.empty and 'Pers No' in df.columns and 'Name' in df.columns:
-            matches = df[(df['Pers No'].astype(str).str.lower().str.contains(query_str)) | 
-                         (df['Name'].astype(str).str.lower().str.contains(query_str))]
-            if not matches.empty:
-                for _, row in matches.iterrows():
-                    status = row.get('Status', 'Unknown')
-                    icon = "🚨" if status == 'Overdue' else "✅"
-                    st.sidebar.markdown(f"**{name}:** {icon} {status}")
-    
-    search_df(df_pme_latest, "PME")
-    search_df(df_refresher, "Refresher")
-    search_df(df_firstaid, "First Aid")
-    search_df(df_fire, "Fire Fighting")
-    st.sidebar.divider()
+    # Use the master base to find the employee
+    if not df_pme_latest.empty and 'Pers No' in df_pme_latest.columns and 'Name' in df_pme_latest.columns:
+        matches = df_pme_latest[(df_pme_latest['Pers No'].astype(str).str.lower().str.contains(query_str)) | 
+                                (df_pme_latest['Name'].astype(str).str.lower().str.contains(query_str))]
+        
+        if not matches.empty:
+            for _, row in matches.iterrows():
+                pers_no = row['Pers No']
+                emp_name = row['Name']
+                dept = row.get('Department', 'Unknown Dept')
+                
+                # Print Employee Header
+                st.sidebar.markdown(f"**👤 {emp_name}**")
+                st.sidebar.caption(f"**ID:** {pers_no} | {dept}")
+                
+                # Helper function to grab status across different dataframes
+                def get_status(df):
+                    if not df.empty and 'Pers No' in df.columns:
+                        person_data = df[df['Pers No'] == pers_no]
+                        if not person_data.empty:
+                            return person_data.iloc[0].get('Status', 'Valid')
+                    return "Unknown"
+                
+                # Display Consolidated Data
+                pme_stat = get_status(df_pme_latest)
+                ref_stat = get_status(df_refresher)
+                fa_stat = get_status(df_firstaid)
+                fire_stat = get_status(df_fire)
+                
+                st.sidebar.markdown(f"🩺 **PME:** {'🚨 Overdue' if pme_stat == 'Overdue' else '✅ Valid'}")
+                st.sidebar.markdown(f"📚 **Refresher:** {'🚨 Overdue' if ref_stat == 'Overdue' else '✅ Valid'}")
+                st.sidebar.markdown(f"🚑 **First Aid:** {'🚨 Overdue' if fa_stat == 'Overdue' else '✅ Valid'}")
+                st.sidebar.markdown(f"🔥 **Fire Fighting:** {'🚨 Overdue' if fire_stat == 'Overdue' else '✅ Valid'}")
+                st.sidebar.divider()
+        else:
+            st.sidebar.error("No employee found.")
 
 st.sidebar.button("🔓 Secure Logout", on_click=lambda: st.session_state.update(authenticated=False))
 
