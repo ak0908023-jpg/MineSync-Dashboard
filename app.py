@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import datetime
 import io
+import base64
 from fpdf import FPDF
 import plotly.express as px
 
@@ -9,6 +10,40 @@ import plotly.express as px
 # 1. Dashboard Configuration & Custom Styling
 # -----------------------------------------------------------------------------
 st.set_page_config(page_title="MineSync Compliance Manager", page_icon="⚙️", layout="wide")
+
+def set_bg(main_bg):
+    with open(main_bg, "rb") as image_file:
+        encoded_string = base64.b64encode(image_file.read()).decode()
+    st.markdown(
+        f"""
+        <style>
+        .stApp {{
+            background-image: url(data:image/jpg;base64,{encoded_string});
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }}
+        /* Semi-transparent overlay so the dashboard remains readable */
+        .main .block-container {{
+            background-color: rgba(244, 246, 249, 0.92);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-top: 2rem;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+try:
+    set_bg("nalco_bg.jpg")
+except FileNotFoundError:
+    pass # App will load normally with a plain background until you upload the image
+
+st.markdown("""
+    <style>
+        /* Main background and fonts */
+        h1, h2, h3 { color: #1e3d59; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
 
 st.markdown("""
     <style>
