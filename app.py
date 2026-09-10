@@ -297,7 +297,10 @@ df_pme_latest, df_pme_2025, df_pme_2026, df_refresher, df_firstaid, df_superviso
 # -----------------------------------------------------------------------------
 st.sidebar.title(f"👤 {st.session_state.username.upper()} Portal")
 st.sidebar.markdown("### 🔍 Quick Employee Lookup")
+
 search_query = st.sidebar.text_input("Enter Name or Pers No:", placeholder="e.g. 10395 or Saunta")
+# Added an explicit Enter button for the search bar
+st.sidebar.button("Enter 🔍", type="primary", use_container_width=True)
 
 if search_query:
     st.sidebar.markdown("#### 📄 Scan Results")
@@ -340,7 +343,10 @@ if search_query:
         else:
             st.sidebar.error("No employee found.")
 
-st.sidebar.button("🔓 Secure Logout", on_click=lambda: st.session_state.update(authenticated=False))
+# Add invisible vertical spacing to push the logout button to the bottom
+st.sidebar.markdown("<div style='min-height: 40vh;'></div>", unsafe_allow_html=True)
+st.sidebar.divider()
+st.sidebar.button("🔓 Secure Logout", on_click=lambda: st.session_state.update(authenticated=False), use_container_width=True)
 
 # -----------------------------------------------------------------------------
 # 4. Top Grid Navigation System
