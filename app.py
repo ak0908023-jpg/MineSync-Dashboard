@@ -434,7 +434,7 @@ elif page == "PME":
     with tab_latest:
         st.markdown("#### Master PME Tracking (Active Deadlines)")
         if not df_pme_latest.empty:
-            with st.expander("📂 View Merged Latest Data (Against 476 Base)"): st.dataframe(df_pme_latest)
+            with st.expander("📂 View Merged Latest Data (Against Base)"): st.dataframe(df_pme_latest)
             st.subheader("Action Required: PME Overdue")
             overdue_pme = df_pme_latest[df_pme_latest['Status'] == 'Overdue']
             if not overdue_pme.empty:
@@ -466,59 +466,79 @@ elif page == "PME":
             c3.metric("Did Not Test", total_25 - tested_25)
             c4.metric("2025 Compliance Rate", f"{(tested_25 / total_25 * 100):.1f}%" if total_25 > 0 else "0%")
             st.dataframe(df_pme_2025)
-
+            
     with tab_monthly:
         st.markdown("#### 📆 Monthly PME Attendance")
         st.info("Total number of employees who have completed their PME broken down by month.")
-        
         if not df_pme_latest.empty:
             df_monthly = df_pme_latest.copy()
-            # Convert string dates back to real dates for sorting
             df_monthly['Real Date'] = pd.to_datetime(df_monthly['Date of test'], format='%d-%m-%Y', errors='coerce')
             df_monthly = df_monthly.dropna(subset=['Real Date'])
             
-            # Format the output (e.g., "August 2026") and create a sortable period key
             df_monthly['Month'] = df_monthly['Real Date'].dt.strftime('%B %Y')
             df_monthly['Sort Key'] = df_monthly['Real Date'].dt.to_period('M')
             
-            # Group and count the totals
             monthly_counts = df_monthly.groupby(['Sort Key', 'Month']).size().reset_index(name='Total Employees Examined')
-            monthly_counts = monthly_counts.sort_values('Sort Key', ascending=False) # Newest months at the top
+            monthly_counts = monthly_counts.sort_values('Sort Key', ascending=False)
             
-            # Create two columns to show the table and a chart side-by-side
             col_table, col_chart = st.columns([1, 2])
-            
             with col_table:
                 st.dataframe(monthly_counts[['Month', 'Total Employees Examined']].reset_index(drop=True), use_container_width=True)
-                
             with col_chart:
-                # Add a quick visualization chart for the monthly totals
-                fig_monthly = px.bar(
-                    monthly_counts.sort_values('Sort Key'), # Sort chronologically for the chart
-                    x='Month', y='Total Employees Examined', 
-                    text_auto=True, 
-                    title="PME Completion Trend", 
-                    color_discrete_sequence=['#1e3d59']
-                )
+                fig_monthly = px.bar(monthly_counts.sort_values('Sort Key'), x='Month', y='Total Employees Examined', text_auto=True, title="PME Completion Trend", color_discrete_sequence=['#1e3d59'])
                 fig_monthly.update_layout(plot_bgcolor="rgba(0,0,0,0)", margin=dict(t=40, b=20, l=0, r=0))
                 st.plotly_chart(fig_monthly, use_container_width=True)
 
 elif page == "Refresher":
     st.title("📚 Statutory Refresher")
-    if not df_refresher.empty:
-        with st.expander("📂 View Master Data (Against 476 Base)"): st.dataframe(df_refresher)
-        st.subheader("Action Required: Overdue")
-        overdue = df_refresher[df_refresher['Status'] == 'Overdue']
-        if not overdue.empty: 
-            st.dataframe(overdue.style.apply(highlight_overdue, axis=1))
-            pdf_bytes = create_pdf_report(overdue, "Refresher Overdue Report")
-            st.download_button("📄 Download PDF", data=pdf_bytes, file_name="Overdue_Refresher.pdf", mime="application/pdf")
-        else: st.success("All personnel compliant.")
+    
+    # Create tabs for current status and monthly trends
+    tab_latest, tab_monthly = st.tabs(["🌟 Current Status", "📊 Monthly Breakdown"])
+    
+    with tab_latest:
+        if not df_refresher.empty:
+            with st.expander("📂 View Master Data (Against Base)"): st.dataframe(df_refresher)
+            st.subheader("Action Required: Overdue")
+            overdue = df_refresher[df_refresher['Status'] == 'Overdue']
+            if not overdue.empty: 
+                st.dataframe(overdue.style.apply(highlight_overdue, axis=1))
+                pdf_bytes = create_pdf_report(overdue, "Refresher Overdue Report")
+                st.download_button("📄 Download PDF", data=pdf_bytes, file_name="Overdue_Refresher.pdf", mime="application/pdf")
+            else: st.success("All personnel compliant.")
+
+    with tab_monthly:
+        st.markdown("#### 📆 Monthly Refresher Attendance")
+        st.info("Total number of employees who have completed their Refresher training broken down by month.")
+        
+        if not df_refresher.empty and 'Refresher Last Date' in df_refresher.columns:
+            df_monthly = df_refresher.copy()
+            # Convert string dates back to real dates for sorting
+            df_monthly['Real Date'] = pd.to_datetime(df_monthly['Refresher Last Date'], format='%d-%m-%Y', errors='coerce')
+            df_monthly = df_monthly.dropna(subset=['Real Date'])
+            
+            if not df_monthly.empty:
+                # Format the output and create a sortable period key
+                df_monthly['Month'] = df_monthly['Real Date'].dt.strftime('%B %Y')
+                df_monthly['Sort Key'] = df_monthly['Real Date'].dt.to_period('M')
+                
+                # Group and count the totals
+                monthly_counts = df_monthly.groupby(['Sort Key', 'Month']).size().reset_index(name='Total Trained')
+                monthly_counts = monthly_counts.sort_values('Sort Key', ascending=False)
+                
+                col_table, col_chart = st.columns([1, 2])
+                with col_table:
+                    st.dataframe(monthly_counts[['Month', 'Total Trained']].reset_index(drop=True), use_container_width=True)
+                with col_chart:
+                    fig_monthly = px.bar(monthly_counts.sort_values('Sort Key'), x='Month', y='Total Trained', text_auto=True, title="Refresher Training Trend", color_discrete_sequence=['#2ca02c'])
+                    fig_monthly.update_layout(plot_bgcolor="rgba(0,0,0,0)", margin=dict(t=40, b=20, l=0, r=0))
+                    st.plotly_chart(fig_monthly, use_container_width=True)
+            else:
+                st.warning("No valid Refresher dates found to generate the monthly breakdown.")
 
 elif page == "First Aid":
     st.title("🚑 First Aid Tracker")
     if not df_firstaid.empty:
-        with st.expander("📂 View Master Data (Against 476 Base)"): st.dataframe(df_firstaid)
+        with st.expander("📂 View Master Data (Against Base)"): st.dataframe(df_firstaid)
         st.subheader("Action Required: Overdue")
         overdue = df_firstaid[df_firstaid['Status'] == 'Overdue']
         if not overdue.empty: 
@@ -655,7 +675,7 @@ elif page == "Admin Console":
         st.error("🔒 Access Denied. You must be an administrator to view this page.")
     else:
         st.title("🛠️ Master Data Editor")
-        st.info("💡 Edit the 476 personnel base roster below or upload new files to overwrite current training records.")
+        st.info("💡 Edit the base roster below or upload new files to overwrite current training records.")
         
         tab_base, tab_upload = st.tabs(["✏️ Edit Master Roster", "📤 Update Training Files"])
         
