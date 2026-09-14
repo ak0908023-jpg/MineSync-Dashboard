@@ -123,13 +123,13 @@ st.markdown("""
 # -----------------------------------------------------------------------------
 # 1.5 Security & Authentication Module (ROLE TRACKING)
 # -----------------------------------------------------------------------------
-# ONLY the user named "admin" can see the Admin Console. Everyone else is Read-Only.
+# ONLY the user named "admin" can see the Admin Console and edit data inline. Everyone else is Read-Only.
 USER_CREDENTIALS = {
     "admin": "nalco2026",                 # FULL ACCESS (Can edit & upload data)
     "shift_manager": "panchpatmali123",   # READ-ONLY
     "safety_officer": "dgms2026",         # READ-ONLY
-    "viewer": "nalcomines",               # READ-ONLY (New general user)
-    "guest": "guest2026"                  # READ-ONLY (New guest user)
+    "viewer": "nalcomines",               # READ-ONLY
+    "guest": "guest2026"                  # READ-ONLY
 }
 
 if "authenticated" not in st.session_state:
@@ -446,11 +446,68 @@ elif page == "PME":
             with st.expander("📂 View Merged Latest Data (Against Base)"): st.dataframe(df_pme_latest)
             st.subheader("Action Required: PME Overdue")
             overdue_pme = df_pme_latest[df_pme_latest['Status'] == 'Overdue']
+            
             if not overdue_pme.empty:
-                st.dataframe(overdue_pme.style.apply(highlight_overdue, axis=1))
-                pdf_bytes = create_pdf_report(overdue_pme, "PME Overdue Report")
-                st.download_button("📄 Download PDF", data=pdf_bytes, file_name="Overdue_PME.pdf", mime="application/pdf")
-            else: st.success("All personnel are currently compliant.")
+                # --- NEW ADMIN EDIT FUNCTION ---
+                if st.session_state.get('username') == 'admin':
+                    st.info("✏️ **Admin Mode:** You can type new dates directly into the 'Date of test' column below (Format: DD-MM-YYYY).")
+                    
+                    # Create an editable dataframe
+                    edited_pme = st.data_editor(
+                        overdue_pme,
+                        disabled=["Pers No", "Name", "Designation", "Department", "Due Date", "Status"],
+                        use_container_width=True,
+                        key="pme_editor"
+                    )
+                    
+                    col_save, col_down = st.columns([1, 4])
+                    with col_save:
+                        if st.button("💾 Save Dates", type="primary"):
+                            # Find which rows the admin actually changed
+                            changed = edited_pme[edited_pme['Date of test'].astype(str) != overdue_pme['Date of test'].astype(str)]
+                            
+                            if not changed.empty:
+                                try:
+                                    # Create the update dataframe
+                                    update_df = changed[['Pers No', 'Date of test']].rename(columns={'Pers No': 'Pl.No.'})
+                                    
+                                    # Read existing PME 2026 sheets
+                                    try:
+                                        xls = pd.ExcelFile("PME 2026.xlsx")
+                                        sheets = {s: pd.read_excel(xls, sheet_name=s) for s in xls.sheet_names}
+                                    except:
+                                        sheets = {}
+                                        
+                                    # Append or create the Live_Updates sheet
+                                    if "Live_Updates" in sheets:
+                                        sheets["Live_Updates"] = pd.concat([sheets["Live_Updates"], update_df], ignore_index=True)
+                                    else:
+                                        sheets["Live_Updates"] = update_df
+                                        
+                                    # Save back to PME 2026.xlsx
+                                    with pd.ExcelWriter("PME 2026.xlsx") as writer:
+                                        for s_name, s_df in sheets.items():
+                                            s_df.to_excel(writer, sheet_name=s_name, index=False)
+                                            
+                                    st.cache_data.clear() # Clear memory
+                                    st.success("✅ Records updated successfully! Refreshing...")
+                                    st.rerun() # Refresh dashboard
+                                except Exception as e:
+                                    st.error(f"Error saving data: {e}")
+                            else:
+                                st.warning("No dates were changed.")
+                                
+                    with col_down:
+                        pdf_bytes = create_pdf_report(overdue_pme, "PME Overdue Report")
+                        st.download_button("📄 Download PDF", data=pdf_bytes, file_name="Overdue_PME.pdf", mime="application/pdf")
+
+                # --- READ-ONLY MODE FOR OTHER USERS ---
+                else:
+                    st.dataframe(overdue_pme.style.apply(highlight_overdue, axis=1))
+                    pdf_bytes = create_pdf_report(overdue_pme, "PME Overdue Report")
+                    st.download_button("📄 Download PDF", data=pdf_bytes, file_name="Overdue_PME.pdf", mime="application/pdf")
+            else: 
+                st.success("All personnel are currently compliant.")
             
     with tab_2026:
         st.markdown("#### 2026 PME Completion Overview")
