@@ -206,9 +206,7 @@ def load_master_data():
                 df_raw['Pl.No.'] = pd.to_numeric(df_raw['Pl.No.'], errors='coerce')
                 df_raw = df_raw.dropna(subset=['Pl.No.'])
                 if 'Date of test' in df_raw.columns:
-                    # FIX: Make date parser flexible to accept dots, dashes, and slashes
-                    clean_dates = df_raw['Date of test'].astype(str).str.replace('.', '-', regex=False).str.replace('/', '-', regex=False)
-                    df_raw['Date of test'] = pd.to_datetime(clean_dates, errors='coerce', dayfirst=True)
+                    df_raw['Date of test'] = pd.to_datetime(df_raw['Date of test'], format='%d.%m.%Y', errors='coerce')
                     df_raw = df_raw.sort_values('Date of test').groupby('Pl.No.', as_index=False).last()
                 return df_raw
         return pd.DataFrame()
