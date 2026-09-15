@@ -3,6 +3,7 @@ import pandas as pd
 import datetime
 import io
 import base64
+import os
 from fpdf import FPDF
 import plotly.express as px
 
@@ -11,7 +12,6 @@ import plotly.express as px
 # -----------------------------------------------------------------------------
 st.set_page_config(page_title="MineSync Compliance Manager", page_icon="⚙️", layout="wide")
 
-# NALCO Background Image Script
 def set_bg(main_bg):
     try:
         with open(main_bg, "rb") as image_file:
@@ -25,7 +25,6 @@ def set_bg(main_bg):
                 background-position: center;
                 background-attachment: fixed;
             }}
-            /* Semi-transparent overlay so the dashboard remains readable */
             .main .block-container {{
                 background-color: rgba(244, 246, 249, 0.92);
                 border-radius: 12px;
@@ -37,16 +36,14 @@ def set_bg(main_bg):
             unsafe_allow_html=True
         )
     except FileNotFoundError:
-        pass # App will load normally if the image is missing
+        pass 
 
 set_bg("nalco_bg.jpg")
 
 st.markdown("""
     <style>
-        /* Main background and fonts */
         h1, h2, h3 { color: #1e3d59; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         
-        /* Stylish Metric Cards */
         div[data-testid="metric-container"] {
             background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
             border-left: 5px solid #1e3d59;
@@ -61,7 +58,6 @@ st.markdown("""
             box-shadow: 0 8px 25px rgba(0,0,0,0.1);
         }
         
-        /* Big Navigation Buttons */
         .stButton>button {
             background: linear-gradient(to right, #1e3d59, #2b577d); 
             color: white; 
@@ -78,20 +74,15 @@ st.markdown("""
             transform: translateY(-2px); 
         }
         
-        /* Logout Button Override */
         div[data-testid="stSidebar"] .stButton>button { 
             background: #ff4b4b; height: auto; margin-top: 10px;
         }
         
-        /* Search Bar Highlighting */
         .stTextInput>div>div>input {
             border: 2px solid #1e3d59 !important;
             border-radius: 8px;
         }
         
-        /* ----------------------------------- */
-        /* CUSTOM TAB COLORS                   */
-        /* ----------------------------------- */
         div[data-testid="stTabs"] button[data-baseweb="tab"] {
             background-color: #ffffff; 
             color: #555555;            
@@ -103,33 +94,27 @@ st.markdown("""
             margin-right: 5px;
             transition: all 0.3s ease;
         }
-        
         div[data-testid="stTabs"] button[data-baseweb="tab"]:hover {
             background-color: #f3f4f6; 
         }
-        
         div[data-testid="stTabs"] button[aria-selected="true"] {
             background: linear-gradient(to right, #00c6ff, #0072ff) !important; 
             color: white !important;   
             border: none;
         }
-        
-        div[data-testid="stTabs"] div[data-baseweb="tab-highlight"] {
-            display: none;
-        }
+        div[data-testid="stTabs"] div[data-baseweb="tab-highlight"] { display: none; }
     </style>
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 1.5 Security & Authentication Module (ROLE TRACKING)
+# 1.5 Security & Authentication Module
 # -----------------------------------------------------------------------------
-# ONLY the user named "admin" can see the Admin Console and edit data inline. Everyone else is Read-Only.
 USER_CREDENTIALS = {
-    "admin": "nalco2026",                 # FULL ACCESS (Can edit & upload data)
-    "shift_manager": "panchpatmali123",   # READ-ONLY
-    "safety_officer": "dgms2026",         # READ-ONLY
-    "viewer": "nalcomines",               # READ-ONLY
-    "guest": "guest2026"                  # READ-ONLY
+    "admin": "nalco2026",                 
+    "shift_manager": "panchpatmali123",   
+    "safety_officer": "dgms2026",         
+    "viewer": "nalcomines",               
+    "guest": "guest2026"                  
 }
 
 if "authenticated" not in st.session_state:
@@ -159,7 +144,7 @@ if not st.session_state.authenticated:
 def load_master_data():
     today = pd.to_datetime('today')
     
-    # --- A. Load Master Workforce Base ---
+    # Base load
     try:
         df_emp = pd.read_excel("Mines_Emp_list.xlsx")
         df_emp.columns = df_emp.columns.astype(str).str.strip()
@@ -167,10 +152,8 @@ def load_master_data():
         df_base.rename(columns={'pers_no': 'Pers No', 'name': 'Name', 'desg': 'Designation', 'dept_nm': 'Department'}, inplace=True)
         df_base['Pers No'] = pd.to_numeric(df_base['Pers No'], errors='coerce')
     except Exception as e:
-        st.error(f"Failed to load Base Employee List: {e}")
         df_base = pd.DataFrame(columns=['Pers No', 'Name', 'Designation', 'Department'])
 
-    # --- B. Load PME Separately for 2025, 2026, and Latest (Bulletproof Scanner) ---
     def process_pme_file(filename):
         dfs = []
         try:
@@ -182,22 +165,15 @@ def load_master_data():
                     row_str = [str(val).lower().replace(' ', '').replace('.', '') for val in row.dropna().values]
                     if any('plno' in val or 'persno' in val for val in row_str):
                         header_idx = i; break
-                        
                 if header_idx is not None:
                     df = pd.read_excel(xls_pme, sheet_name=sheet, header=header_idx + 1)
                 
                 df.columns = df.columns.astype(str).str.strip()
-                
-                # Auto-correct column name variations
                 for col in df.columns:
                     col_clean = col.lower().replace(' ', '').replace('.', '')
-                    if 'dateoftest' in col_clean:
-                        df.rename(columns={col: 'Date of test'}, inplace=True)
-                    elif 'plno' in col_clean or 'persno' in col_clean:
-                        df.rename(columns={col: 'Pl.No.'}, inplace=True)
-                        
-                if 'Pl.No.' in df.columns:
-                    dfs.append(df)
+                    if 'dateoftest' in col_clean: df.rename(columns={col: 'Date of test'}, inplace=True)
+                    elif 'plno' in col_clean or 'persno' in col_clean: df.rename(columns={col: 'Pl.No.'}, inplace=True)
+                if 'Pl.No.' in df.columns: dfs.append(df)
         except Exception: pass
         
         if dfs:
@@ -206,7 +182,6 @@ def load_master_data():
                 df_raw['Pl.No.'] = pd.to_numeric(df_raw['Pl.No.'], errors='coerce')
                 df_raw = df_raw.dropna(subset=['Pl.No.'])
                 if 'Date of test' in df_raw.columns:
-                    # FIX: Make date parser flexible to accept dots, dashes, and slashes
                     clean_dates = df_raw['Date of test'].astype(str).str.replace('.', '-', regex=False).str.replace('/', '-', regex=False)
                     df_raw['Date of test'] = pd.to_datetime(clean_dates, errors='coerce', dayfirst=True)
                     df_raw = df_raw.sort_values('Date of test').groupby('Pl.No.', as_index=False).last()
@@ -216,14 +191,20 @@ def load_master_data():
     raw_2025 = process_pme_file("PME 2025.xlsx")
     raw_2026 = process_pme_file("PME 2026.xlsx")
     
-    if not raw_2025.empty and not raw_2026.empty:
-        raw_latest = pd.concat([raw_2025, raw_2026], ignore_index=True)
-    elif not raw_2025.empty:
-        raw_latest = raw_2025.copy()
-    elif not raw_2026.empty:
-        raw_latest = raw_2026.copy()
-    else:
-        raw_latest = pd.DataFrame()
+    if not raw_2025.empty and not raw_2026.empty: raw_latest = pd.concat([raw_2025, raw_2026], ignore_index=True)
+    elif not raw_2025.empty: raw_latest = raw_2025.copy()
+    elif not raw_2026.empty: raw_latest = raw_2026.copy()
+    else: raw_latest = pd.DataFrame()
+
+    # --- NEW: APPLY LIVE OVERRIDES ---
+    try:
+        if os.path.exists("live_pme_updates.csv"):
+            overrides = pd.read_csv("live_pme_updates.csv")
+            overrides['Pl.No.'] = pd.to_numeric(overrides['Pl.No.'], errors='coerce')
+            overrides['Date of test'] = pd.to_datetime(overrides['Date of test'], format='%d-%m-%Y', errors='coerce')
+            raw_latest = pd.concat([raw_latest, overrides], ignore_index=True)
+    except Exception:
+        pass
         
     if not raw_latest.empty and 'Date of test' in raw_latest.columns:
         raw_latest = raw_latest.sort_values('Date of test').groupby('Pl.No.', as_index=False).last()
@@ -231,12 +212,10 @@ def load_master_data():
     def build_pme_module(raw_df):
         if not raw_df.empty and 'Pl.No.' in raw_df.columns and 'Date of test' in raw_df.columns:
             df_out = df_base.merge(raw_df[['Pl.No.', 'Date of test']], left_on='Pers No', right_on='Pl.No.', how='left')
-            # Safely remove redundant Pl.No. column after merge
             df_out = df_out.drop(columns=['Pl.No.'], errors='ignore')
         else:
             df_out = df_base.copy()
             df_out['Date of test'] = pd.NaT
-        # PME STRICT ANNUAL FREQUENCY APPLIED HERE
         df_out['Due Date'] = df_out['Date of test'] + pd.DateOffset(years=1)
         df_out['Status'] = df_out['Due Date'].apply(lambda x: 'Valid' if pd.notna(x) and x >= today else 'Overdue')
         return df_out
@@ -245,7 +224,7 @@ def load_master_data():
     df_pme_2025 = build_pme_module(raw_2025)
     df_pme_2026 = build_pme_module(raw_2026)
 
-    # --- C. Load Training Desk Modules ---
+    # Load Training Desk
     master_data = {'Refresher': pd.DataFrame(), 'First_Aid': pd.DataFrame(), 'Supervisor': pd.DataFrame(), 'Fire_Fighting': pd.DataFrame(), 'OEM_Training': pd.DataFrame(), 'Service_Training': pd.DataFrame()}
     try:
         xls = pd.ExcelFile("Training_Desk_Final_OEM_Service_v2 (2).xlsx")
@@ -283,7 +262,6 @@ def load_master_data():
     df_supervisor = merge_to_base('Supervisor', ['Supervisor Last Date', 'Supervisor Expiry Date', 'Due Alert'])
     df_fire = merge_to_base('Fire_Fighting', ['Fire Fighting Last Date', 'Fire Fighting Expiry Date', 'Due Alert'])
     
-    # --- DATE CLEANER: Remove 00:00:00 by formatting dates to DD-MM-YYYY ---
     for df in [df_pme_latest, df_pme_2025, df_pme_2026, df_refresher, df_firstaid, df_supervisor, df_fire, master_data['OEM_Training'], master_data['Service_Training']]:
         if not df.empty:
             for col in df.columns:
@@ -301,51 +279,38 @@ st.sidebar.title(f"👤 {st.session_state.username.upper()} Portal")
 st.sidebar.markdown("### 🔍 Quick Employee Lookup")
 
 search_query = st.sidebar.text_input("Enter Name or Pers No:", placeholder="e.g. 10395 or Saunta")
-# Added an explicit Enter button for the search bar
 st.sidebar.button("Enter 🔍", type="primary", use_container_width=True)
 
 if search_query:
     st.sidebar.markdown("#### 📄 Scan Results")
     query_str = str(search_query).lower()
     
-    # Use the master base to find the employee
     if not df_pme_latest.empty and 'Pers No' in df_pme_latest.columns and 'Name' in df_pme_latest.columns:
         matches = df_pme_latest[(df_pme_latest['Pers No'].astype(str).str.lower().str.contains(query_str)) | 
                                 (df_pme_latest['Name'].astype(str).str.lower().str.contains(query_str))]
-        
         if not matches.empty:
             for _, row in matches.iterrows():
                 pers_no = row['Pers No']
                 emp_name = row['Name']
                 dept = row.get('Department', 'Unknown Dept')
                 
-                # Print Employee Header
                 st.sidebar.markdown(f"**👤 {emp_name}**")
                 st.sidebar.caption(f"**ID:** {pers_no} | {dept}")
                 
-                # Helper function to grab status across different dataframes
                 def get_status(df):
                     if not df.empty and 'Pers No' in df.columns:
                         person_data = df[df['Pers No'] == pers_no]
-                        if not person_data.empty:
-                            return person_data.iloc[0].get('Status', 'Valid')
+                        if not person_data.empty: return person_data.iloc[0].get('Status', 'Valid')
                     return "Unknown"
                 
-                # Display Consolidated Data
-                pme_stat = get_status(df_pme_latest)
-                ref_stat = get_status(df_refresher)
-                fa_stat = get_status(df_firstaid)
-                fire_stat = get_status(df_fire)
-                
-                st.sidebar.markdown(f"🩺 **PME:** {'🚨 Overdue' if pme_stat == 'Overdue' else '✅ Valid'}")
-                st.sidebar.markdown(f"📚 **Refresher:** {'🚨 Overdue' if ref_stat == 'Overdue' else '✅ Valid'}")
-                st.sidebar.markdown(f"🚑 **First Aid:** {'🚨 Overdue' if fa_stat == 'Overdue' else '✅ Valid'}")
-                st.sidebar.markdown(f"🔥 **Fire Fighting:** {'🚨 Overdue' if fire_stat == 'Overdue' else '✅ Valid'}")
+                st.sidebar.markdown(f"🩺 **PME:** {'🚨 Overdue' if get_status(df_pme_latest) == 'Overdue' else '✅ Valid'}")
+                st.sidebar.markdown(f"📚 **Refresher:** {'🚨 Overdue' if get_status(df_refresher) == 'Overdue' else '✅ Valid'}")
+                st.sidebar.markdown(f"🚑 **First Aid:** {'🚨 Overdue' if get_status(df_firstaid) == 'Overdue' else '✅ Valid'}")
+                st.sidebar.markdown(f"🔥 **Fire Fighting:** {'🚨 Overdue' if get_status(df_fire) == 'Overdue' else '✅ Valid'}")
                 st.sidebar.divider()
         else:
             st.sidebar.error("No employee found.")
 
-# Add invisible vertical spacing to push the logout button to the bottom
 st.sidebar.markdown("<div style='min-height: 40vh;'></div>", unsafe_allow_html=True)
 st.sidebar.divider()
 st.sidebar.button("🔓 Secure Logout", on_click=lambda: st.session_state.update(authenticated=False), use_container_width=True)
@@ -370,7 +335,6 @@ with nav6: st.button("📋 Supervisor", on_click=nav, args=("Supervisor",), use_
 with nav7: st.button("🔥 Fire / ⚙️ OEM", on_click=nav, args=("Misc",), use_container_width=True)
 with nav8: st.button("📈 Analytics & AI", on_click=nav, args=("Analytics",), use_container_width=True)
 
-# ADDED ADMIN CONSOLE BUTTON (ONLY VISIBLE TO ADMIN)
 if st.session_state.get('username') == 'admin':
     st.button("🛠️ Admin Console (Edit Data)", on_click=nav, args=("Admin Console",), use_container_width=True)
 
@@ -419,22 +383,15 @@ if page == "Enterprise Overview":
     
     chart_col1, chart_col2 = st.columns([2, 1])
     with chart_col1:
-        alert_data = pd.DataFrame({
-            'Category': ['PME', 'Refresher', 'First Aid', 'Fire Fighting'],
-            'Overdue Count': [ovd_pme, ovd_ref, ovd_fa, ovd_fire]
-        })
-        fig_alerts = px.bar(alert_data, x='Category', y='Overdue Count', text='Overdue Count',
-                            title="Enterprise Vulnerability Map (Overdue Trainings)",
-                            color='Overdue Count', color_continuous_scale='Reds')
+        alert_data = pd.DataFrame({'Category': ['PME', 'Refresher', 'First Aid', 'Fire Fighting'], 'Overdue Count': [ovd_pme, ovd_ref, ovd_fa, ovd_fire]})
+        fig_alerts = px.bar(alert_data, x='Category', y='Overdue Count', text='Overdue Count', title="Enterprise Vulnerability Map (Overdue Trainings)", color='Overdue Count', color_continuous_scale='Reds')
         fig_alerts.update_traces(textposition='outside', marker_line_color='black', marker_line_width=1.5)
         fig_alerts.update_layout(plot_bgcolor="rgba(0,0,0,0)", margin=dict(t=40, b=20, l=0, r=0))
         st.plotly_chart(fig_alerts, use_container_width=True)
 
     with chart_col2:
         if total_emp > 0:
-            fig_health = px.pie(names=['Compliant', 'Overdue'], values=[total_emp - ovd_pme, ovd_pme], 
-                                hole=0.7, title="Global PME Health Index",
-                                color_discrete_sequence=['#2ca02c', '#ff4b4b'])
+            fig_health = px.pie(names=['Compliant', 'Overdue'], values=[total_emp - ovd_pme, ovd_pme], hole=0.7, title="Global PME Health Index", color_discrete_sequence=['#2ca02c', '#ff4b4b'])
             fig_health.update_layout(margin=dict(t=40, b=20, l=0, r=0))
             st.plotly_chart(fig_health, use_container_width=True)
 
@@ -450,11 +407,9 @@ elif page == "PME":
             overdue_pme = df_pme_latest[df_pme_latest['Status'] == 'Overdue']
             
             if not overdue_pme.empty:
-                # --- NEW ADMIN EDIT FUNCTION ---
                 if st.session_state.get('username') == 'admin':
-                    st.info("✏️ **Admin Mode:** You can type new dates directly into the 'Date of test' column below (Format: DD-MM-YYYY).")
+                    st.info("✏️ **Admin Mode:** Double-click the 'Date of test' cell below to update records (Format: DD-MM-YYYY).")
                     
-                    # Create an editable dataframe
                     edited_pme = st.data_editor(
                         overdue_pme,
                         disabled=["Pers No", "Name", "Designation", "Department", "Due Date", "Status"],
@@ -465,45 +420,27 @@ elif page == "PME":
                     col_save, col_down = st.columns([1, 4])
                     with col_save:
                         if st.button("💾 Save Dates", type="primary"):
-                            # Find which rows the admin actually changed
                             changed = edited_pme[edited_pme['Date of test'].astype(str) != overdue_pme['Date of test'].astype(str)]
-                            
                             if not changed.empty:
-                                try:
-                                    # Create the update dataframe
-                                    update_df = changed[['Pers No', 'Date of test']].rename(columns={'Pers No': 'Pl.No.'})
+                                update_df = changed[['Pers No', 'Date of test']].rename(columns={'Pers No': 'Pl.No.'})
+                                
+                                # SAVES TO INDESTRUCTIBLE CSV FILE
+                                if os.path.exists("live_pme_updates.csv"):
+                                    existing = pd.read_csv("live_pme_updates.csv")
+                                    updated = pd.concat([existing, update_df], ignore_index=True)
+                                    updated.to_csv("live_pme_updates.csv", index=False)
+                                else:
+                                    update_df.to_csv("live_pme_updates.csv", index=False)
                                     
-                                    # Read existing PME 2026 sheets
-                                    try:
-                                        xls = pd.ExcelFile("PME 2026.xlsx")
-                                        sheets = {s: pd.read_excel(xls, sheet_name=s) for s in xls.sheet_names}
-                                    except:
-                                        sheets = {}
-                                        
-                                    # Append or create the Live_Updates sheet
-                                    if "Live_Updates" in sheets:
-                                        sheets["Live_Updates"] = pd.concat([sheets["Live_Updates"], update_df], ignore_index=True)
-                                    else:
-                                        sheets["Live_Updates"] = update_df
-                                        
-                                    # Save back to PME 2026.xlsx
-                                    with pd.ExcelWriter("PME 2026.xlsx") as writer:
-                                        for s_name, s_df in sheets.items():
-                                            s_df.to_excel(writer, sheet_name=s_name, index=False)
-                                            
-                                    st.cache_data.clear() # Clear memory
-                                    st.success("✅ Records updated successfully! Refreshing...")
-                                    st.rerun() # Refresh dashboard
-                                except Exception as e:
-                                    st.error(f"Error saving data: {e}")
+                                st.cache_data.clear() 
+                                st.success("✅ Records updated! Refreshing...")
+                                st.rerun() 
                             else:
                                 st.warning("No dates were changed.")
                                 
                     with col_down:
                         pdf_bytes = create_pdf_report(overdue_pme, "PME Overdue Report")
                         st.download_button("📄 Download PDF", data=pdf_bytes, file_name="Overdue_PME.pdf", mime="application/pdf")
-
-                # --- READ-ONLY MODE FOR OTHER USERS ---
                 else:
                     st.dataframe(overdue_pme.style.apply(highlight_overdue, axis=1))
                     pdf_bytes = create_pdf_report(overdue_pme, "PME Overdue Report")
@@ -538,22 +475,17 @@ elif page == "PME":
     with tab_monthly:
         st.markdown("#### 📆 Monthly PME Attendance")
         st.info("Total number of employees who have completed their PME broken down by month.")
-        
         if not df_pme_latest.empty:
             df_monthly = df_pme_latest.copy()
             df_monthly['Real Date'] = pd.to_datetime(df_monthly['Date of test'], format='%d-%m-%Y', errors='coerce')
             df_monthly = df_monthly.dropna(subset=['Real Date'])
-            
             if not df_monthly.empty:
                 df_monthly['Month'] = df_monthly['Real Date'].dt.strftime('%B %Y')
                 df_monthly['Sort Key'] = df_monthly['Real Date'].dt.to_period('M')
-                
                 monthly_counts = df_monthly.groupby(['Sort Key', 'Month']).size().reset_index(name='Total Employees Examined')
                 monthly_counts = monthly_counts.sort_values('Sort Key', ascending=False)
-                
                 col_table, col_chart = st.columns([1, 2])
-                with col_table:
-                    st.dataframe(monthly_counts[['Month', 'Total Employees Examined']].reset_index(drop=True), use_container_width=True)
+                with col_table: st.dataframe(monthly_counts[['Month', 'Total Employees Examined']].reset_index(drop=True), use_container_width=True)
                 with col_chart:
                     fig_monthly = px.bar(monthly_counts.sort_values('Sort Key'), x='Month', y='Total Employees Examined', text_auto=True, title="PME Completion Trend", color_discrete_sequence=['#1e3d59'])
                     fig_monthly.update_layout(plot_bgcolor="rgba(0,0,0,0)", margin=dict(t=40, b=20, l=0, r=0))
@@ -561,9 +493,7 @@ elif page == "PME":
 
 elif page == "Refresher":
     st.title("📚 Statutory Refresher")
-    
     tab_latest, tab_monthly = st.tabs(["🌟 Current Status", "📊 Monthly Breakdown"])
-    
     with tab_latest:
         if not df_refresher.empty:
             with st.expander("📂 View Master Data (Against Base)"): st.dataframe(df_refresher)
@@ -574,32 +504,24 @@ elif page == "Refresher":
                 pdf_bytes = create_pdf_report(overdue, "Refresher Overdue Report")
                 st.download_button("📄 Download PDF", data=pdf_bytes, file_name="Overdue_Refresher.pdf", mime="application/pdf")
             else: st.success("All personnel compliant.")
-
     with tab_monthly:
         st.markdown("#### 📆 Monthly Refresher Attendance")
         st.info("Total number of employees who have completed their Refresher training broken down by month.")
-        
         if not df_refresher.empty and 'Refresher Last Date' in df_refresher.columns:
             df_monthly = df_refresher.copy()
             df_monthly['Real Date'] = pd.to_datetime(df_monthly['Refresher Last Date'], format='%d-%m-%Y', errors='coerce')
             df_monthly = df_monthly.dropna(subset=['Real Date'])
-            
             if not df_monthly.empty:
                 df_monthly['Month'] = df_monthly['Real Date'].dt.strftime('%B %Y')
                 df_monthly['Sort Key'] = df_monthly['Real Date'].dt.to_period('M')
-                
                 monthly_counts = df_monthly.groupby(['Sort Key', 'Month']).size().reset_index(name='Total Trained')
                 monthly_counts = monthly_counts.sort_values('Sort Key', ascending=False)
-                
                 col_table, col_chart = st.columns([1, 2])
-                with col_table:
-                    st.dataframe(monthly_counts[['Month', 'Total Trained']].reset_index(drop=True), use_container_width=True)
+                with col_table: st.dataframe(monthly_counts[['Month', 'Total Trained']].reset_index(drop=True), use_container_width=True)
                 with col_chart:
                     fig_monthly = px.bar(monthly_counts.sort_values('Sort Key'), x='Month', y='Total Trained', text_auto=True, title="Refresher Training Trend", color_discrete_sequence=['#2ca02c'])
                     fig_monthly.update_layout(plot_bgcolor="rgba(0,0,0,0)", margin=dict(t=40, b=20, l=0, r=0))
                     st.plotly_chart(fig_monthly, use_container_width=True)
-            else:
-                st.warning("No valid Refresher dates found to generate the monthly breakdown.")
 
 elif page == "First Aid":
     st.title("🚑 First Aid Tracker")
@@ -634,149 +556,96 @@ elif page == "Misc":
 
 elif page == "Analytics":
     tab_charts, tab_ai = st.tabs(["📈 Data Analytics", "💬 AI Assistant"])
-    
     with tab_charts:
         df_chart = df_pme_latest.copy()
         df_chart['Compliance Year'] = pd.to_datetime(df_chart['Date of test'], format='%d-%m-%Y', errors='coerce').dt.year
         df_chart['Compliance Month'] = pd.to_datetime(df_chart['Date of test'], format='%d-%m-%Y', errors='coerce').dt.strftime('%b %Y')
-        
         if not df_chart.empty and 'Compliance Year' in df_chart.columns:
             st.markdown("#### 🩺 Periodic Medical Examination (PME) Trends")
             col_rep1, col_rep2 = st.columns(2)
-            
             with col_rep1:
                 valid_years = df_chart.dropna(subset=['Compliance Year'])
                 year_summary = valid_years.groupby('Compliance Year').size().reset_index(name='Trained Personnel')
-                fig_year = px.bar(year_summary, x='Compliance Year', y='Trained Personnel', 
-                                  text_auto=True, color_continuous_scale='Blues', 
-                                  title="Year-Wise Compliance Volume")
+                fig_year = px.bar(year_summary, x='Compliance Year', y='Trained Personnel', text_auto=True, color_continuous_scale='Blues', title="Year-Wise Compliance Volume")
                 fig_year.update_layout(plot_bgcolor="rgba(0,0,0,0)")
                 st.plotly_chart(fig_year, use_container_width=True)
-                
             with col_rep2:
                 valid_months = df_chart.dropna(subset=['Compliance Month'])
                 month_summary = valid_months.groupby('Compliance Month').size().reset_index(name='Completed Trainings')
                 month_summary['Sort Date'] = pd.to_datetime(month_summary['Compliance Month'], format='%b %Y', errors='coerce')
                 month_summary = month_summary.sort_values('Sort Date')
-                fig_month = px.line(month_summary, x='Compliance Month', y='Completed Trainings', 
-                                    markers=True, title="Month-Wise Due vs. Compliance", 
-                                    color_discrete_sequence=['#ff4b4b'])
+                fig_month = px.line(month_summary, x='Compliance Month', y='Completed Trainings', markers=True, title="Month-Wise Due vs. Compliance", color_discrete_sequence=['#ff4b4b'])
                 fig_month.update_layout(plot_bgcolor="rgba(0,0,0,0)")
                 st.plotly_chart(fig_month, use_container_width=True)
-
         st.divider()
-
         if not df_firstaid.empty and 'First Aid Last Year' in df_firstaid.columns:
             st.markdown("#### 🚑 First Aid Training Breakdowns")
             col_fa1, col_fa2 = st.columns(2)
-            
             with col_fa1:
                 valid_fa_years = df_firstaid.dropna(subset=['First Aid Last Year'])
                 fa_year_summary = valid_fa_years.groupby('First Aid Last Year').size().reset_index(name='Trained Personnel')
-                fig_fa_bar = px.bar(fa_year_summary, x='First Aid Last Year', y='Trained Personnel', 
-                                    text_auto=True, title="Annual First Aid Certifications", 
-                                    color_discrete_sequence=['#2ca02c'])
+                fig_fa_bar = px.bar(fa_year_summary, x='First Aid Last Year', y='Trained Personnel', text_auto=True, title="Annual First Aid Certifications", color_discrete_sequence=['#2ca02c'])
                 fig_fa_bar.update_layout(plot_bgcolor="rgba(0,0,0,0)")
                 st.plotly_chart(fig_fa_bar, use_container_width=True)
-                
             with col_fa2:
                 if 'First Aid Type' in df_firstaid.columns:
                     fa_type_summary = df_firstaid.groupby('First Aid Type').size().reset_index(name='Total Trained')
-                    fig_fa_pie = px.pie(fa_type_summary, values='Total Trained', names='First Aid Type', 
-                                        hole=0.4, title="Breakdown by First Aid Type", 
-                                        color_discrete_sequence=px.colors.qualitative.Set2)
+                    fig_fa_pie = px.pie(fa_type_summary, values='Total Trained', names='First Aid Type', hole=0.4, title="Breakdown by First Aid Type", color_discrete_sequence=px.colors.qualitative.Set2)
                     st.plotly_chart(fig_fa_pie, use_container_width=True)
 
     with tab_ai:
         st.markdown("Ask questions about training schedules, statutory compliance, or dashboard data.")
-        
-        # Initialize chat history
         if "messages" not in st.session_state: 
             st.session_state.messages = [{"role": "assistant", "content": "Hello! I am your MineSync Local Assistant. Ask me how many people are overdue for PME, Refresher, or First Aid."}]
-            
-        # Display chat history
         for message in st.session_state.messages:
-            with st.chat_message(message["role"]): 
-                st.markdown(message["content"])
-                
-        # Accept user input
+            with st.chat_message(message["role"]): st.markdown(message["content"])
         if prompt := st.chat_input("E.g., How many people are overdue for PME?"):
-            # Add user message to chat history
-            with st.chat_message("user"): 
-                st.markdown(prompt)
+            with st.chat_message("user"): st.markdown(prompt)
             st.session_state.messages.append({"role": "user", "content": prompt})
-            
-            # --- SMART LOCAL ASSISTANT LOGIC ---
             prompt_lower = prompt.lower()
-            
             if "pme" in prompt_lower and "overdue" in prompt_lower:
                 count = len(df_pme_latest[df_pme_latest['Status'] == 'Overdue'])
                 response = f"🚨 There are currently **{count} employees** overdue for their Periodic Medical Examination (PME)."
-                
             elif "refresher" in prompt_lower and "overdue" in prompt_lower:
                 count = len(df_refresher[df_refresher['Status'] == 'Overdue'])
                 response = f"📚 We have **{count} employees** overdue for their Statutory Refresher training."
-                
             elif "first aid" in prompt_lower and "overdue" in prompt_lower:
                 count = len(df_firstaid[df_firstaid['Status'] == 'Overdue'])
                 response = f"🚑 There are **{count} employees** with expired First Aid certifications."
-                
             elif "total employees" in prompt_lower or "how many employees" in prompt_lower or "master" in prompt_lower:
                 total = len(df_pme_latest)
                 response = f"👥 The MineSync Master Roster is currently tracking **{total} employees**."
-                
             else:
                 response = "I am currently running locally. Try asking me:\n- *How many people are overdue for PME?*\n- *How many are overdue for Refresher?*\n- *What is the total employee count?*"
-            
-            # Display assistant response
-            with st.chat_message("assistant"): 
-                st.markdown(response)
+            with st.chat_message("assistant"): st.markdown(response)
             st.session_state.messages.append({"role": "assistant", "content": response})
 
-# -----------------------------------------------------------------------------
-# 6. NEW ROLE-BASED ADMIN CONSOLE
-# -----------------------------------------------------------------------------
 elif page == "Admin Console":
     if st.session_state.get('username') != 'admin':
         st.error("🔒 Access Denied. You must be an administrator to view this page.")
     else:
         st.title("🛠️ Master Data Editor")
         st.info("💡 Edit the base roster below or upload new files to overwrite current training records.")
-        
         tab_base, tab_upload = st.tabs(["✏️ Edit Master Roster", "📤 Update Training Files"])
-        
         with tab_base:
             st.markdown("### Interactive Master Workforce List")
-            st.markdown("Double-click any cell to edit it. You can also add or delete rows using the tools on the left of the table.")
             try:
                 raw_base = pd.read_excel("Mines_Emp_list.xlsx")
-                # Interactive Editor
                 edited_base = st.data_editor(raw_base, num_rows="dynamic", use_container_width=True, height=400)
-                
                 if st.button("💾 Save Changes to Server"):
-                    # Save back to the file
                     edited_base.to_excel("Mines_Emp_list.xlsx", index=False)
-                    st.cache_data.clear() # Force dashboard to refresh
+                    st.cache_data.clear()
                     st.success("✅ Master List Updated! Refreshing dashboard...")
                     st.rerun()
             except Exception as e:
                 st.error(f"Could not load Mines_Emp_list.xlsx: {e}")
-                
         with tab_upload:
             st.markdown("### Overwrite Complex Training Records")
-            st.markdown("For files with multiple sheets (like PME or the Training Desk), upload your updated `.xlsx` file here.")
-            target_file = st.selectbox("Select File to Replace:", [
-                "PME 2026.xlsx", 
-                "PME 2025.xlsx", 
-                "Training_Desk_Final_OEM_Service_v2 (2).xlsx"
-            ])
-            
+            target_file = st.selectbox("Select File to Replace:", ["PME 2026.xlsx", "PME 2025.xlsx", "Training_Desk_Final_OEM_Service_v2 (2).xlsx"])
             uploaded_file = st.file_uploader(f"Upload updated version of {target_file}", type=["xlsx"])
-            
             if uploaded_file is not None:
                 if st.button("🔄 Overwrite File on Server"):
-                    with open(target_file, "wb") as f:
-                        f.write(uploaded_file.getbuffer())
-                    st.cache_data.clear() # Force dashboard to refresh
+                    with open(target_file, "wb") as f: f.write(uploaded_file.getbuffer())
+                    st.cache_data.clear()
                     st.success(f"✅ {target_file} replaced successfully!")
                     st.rerun()
