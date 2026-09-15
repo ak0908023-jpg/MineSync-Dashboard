@@ -196,7 +196,7 @@ def load_master_data():
     elif not raw_2026.empty: raw_latest = raw_2026.copy()
     else: raw_latest = pd.DataFrame()
 
-    # --- NEW: APPLY LIVE OVERRIDES ---
+    # --- LIVE OVERRIDES ---
     try:
         if os.path.exists("live_pme_updates.csv"):
             overrides = pd.read_csv("live_pme_updates.csv")
@@ -424,7 +424,6 @@ elif page == "PME":
                             if not changed.empty:
                                 update_df = changed[['Pers No', 'Date of test']].rename(columns={'Pers No': 'Pl.No.'})
                                 
-                                # SAVES TO INDESTRUCTIBLE CSV FILE
                                 if os.path.exists("live_pme_updates.csv"):
                                     existing = pd.read_csv("live_pme_updates.csv")
                                     updated = pd.concat([existing, update_df], ignore_index=True)
